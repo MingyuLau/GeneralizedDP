@@ -63,6 +63,7 @@ def get_val_mask(n_episodes, val_ratio, seed=0):
 def downsample_mask(mask, max_n, seed=0):
     # subsample training data
     train_mask = mask
+    # import pdb; pdb.set_trace()
     if (max_n is not None) and (np.sum(train_mask) > max_n):
         n_train = int(max_n)
         curr_train_idxs = np.nonzero(train_mask)[0]

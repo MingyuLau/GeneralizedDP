@@ -20,6 +20,7 @@ class MetaworldDataset(BaseDataset):
             max_train_episodes=None,
             ):
         super().__init__()
+        zarr_path = '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/metaworld_hammer_expert.zarr'
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['state', 'action', 'point_cloud'])
         val_mask = get_val_mask(

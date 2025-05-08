@@ -29,7 +29,7 @@ real_robot_data/
 output.gif
 output.mp4
 output.png
-
+data/
 test.gif
 test.mp4
 test_depth.mp4

@@ -21,25 +21,27 @@ class RealDexDataset(BaseDataset):
             task_name=None,
             ):
         super().__init__()
+        zarr_path = "/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/pour_40demo_1024.zarr"
         self.task_name = task_name
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'point_cloud', 'img'])
+            zarr_path, keys=['state', 'action', 'point_cloud', 'img']) # 数据读取成功
         val_mask = get_val_mask(
-            n_episodes=self.replay_buffer.n_episodes, 
+            n_episodes=self.replay_buffer.n_episodes,  # 这里就是采集的demo数量
             val_ratio=val_ratio,
             seed=seed)
         train_mask = ~val_mask
         train_mask = downsample_mask(
             mask=train_mask, 
-            max_n=max_train_episodes, 
+            max_n=max_train_episodes,  # 这里是最大训练的episode数量，不过貌似一般不会超过这个数值，这个函数保证训练的episode不超过预设
             seed=seed)
-
+        
         self.sampler = SequenceSampler(
             replay_buffer=self.replay_buffer, 
             sequence_length=horizon,
             pad_before=pad_before, 
             pad_after=pad_after,
             episode_mask=train_mask)
+        
         self.train_mask = train_mask
         self.horizon = horizon
         self.pad_before = pad_before
@@ -86,7 +88,9 @@ class RealDexDataset(BaseDataset):
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
-        data = self._sample_to_data(sample)
+        data = self._sample_to_data(sample)  # 这里只有两个key obs(point_cloud, agent_pos)和action (16,7)
+        # (16,1024,6)  (16,7)这个agent_pos是啥
+        # import pdb; pdb.set_trace()
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 

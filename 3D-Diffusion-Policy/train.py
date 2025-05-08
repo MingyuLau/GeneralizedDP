@@ -98,6 +98,7 @@ class TrainDP3Workspace:
 
         # configure dataset
         dataset: BaseDataset
+        # import pdb; pdb.set_trace()
         dataset = hydra.utils.instantiate(cfg.task.dataset)
 
         assert isinstance(dataset, BaseDataset), print(f"dataset must be BaseDataset, got {type(dataset)}")
@@ -140,7 +141,6 @@ class TrainDP3Workspace:
 
         if env_runner is not None:
             assert isinstance(env_runner, BaseRunner)
-        
         cfg.logging.name = str(cfg.logging.name)
         cprint("-----------------------------", "yellow")
         cprint(f"[WandB] group: {cfg.logging.group}", "yellow")
@@ -492,13 +492,17 @@ class TrainDP3Workspace:
     def create_from_snapshot(cls, path):
         return torch.load(open(path, 'rb'), pickle_module=dill)
     
-
+# import pdb; pdb.set_trace()
 @hydra.main(
     version_base=None,
     config_path=str(pathlib.Path(__file__).parent.joinpath(
-        'diffusion_policy_3d', 'config'))
+        'diffusion_policy_3d', 'config')) # 'diffusion_policy_3d/config'
 )
+
+
 def main(cfg):
+    # import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     workspace = TrainDP3Workspace(cfg)
     workspace.run()
 

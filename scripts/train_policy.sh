@@ -19,8 +19,8 @@ run_dir="data/outputs/${exp_name}_seed${seed}"
 
 
 # gpu_id=$(bash scripts/find_gpu.sh)
-gpu_id=${5}
-echo -e "\033[33mgpu id (to use): ${gpu_id}\033[0m"
+# gpu_id=${5}
+# echo -e "\033[33mgpu id (to use): ${gpu_id}\033[0m"
 
 
 if [ $DEBUG = True ]; then
@@ -38,7 +38,7 @@ cd 3D-Diffusion-Policy
 
 
 export HYDRA_FULL_ERROR=1 
-export CUDA_VISIBLE_DEVICES=${gpu_id}
+# export CUDA_VISIBLE_DEVICES=${gpu_id}
 python train.py --config-name=${config_name}.yaml \
                             task=${task_name} \
                             hydra.run.dir=${run_dir} \

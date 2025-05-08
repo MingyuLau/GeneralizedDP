@@ -258,36 +258,42 @@ class DP3(BasePolicy):
 
     def compute_loss(self, batch):
         # normalize input
-
+        # import pdb; pdb.set_trace()
         nobs = self.normalizer.normalize(batch['obs'])
         nactions = self.normalizer['action'].normalize(batch['action'])
-
+        
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
+############
+        # sparse_stride = 4
+        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+        # nobs['sparse_actions'] = sparse_actions
 
+        # import pdb; pdb.set_trace()
+###########
         # handle different ways of passing observation
         local_cond = None
         global_cond = None
         trajectory = nactions
-        cond_data = trajectory
+        cond_data = trajectory # [128,16,7]
         
-       
+        
         
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-            nobs_features = self.obs_encoder(this_nobs)
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [256,1024,3] [256,7]
+            nobs_features = self.obs_encoder(this_nobs) # [256,128]
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
                 global_cond = nobs_features.reshape(batch_size, self.n_obs_steps, -1)
             else:
                 # reshape back to B, Do
-                global_cond = nobs_features.reshape(batch_size, -1)
+                global_cond = nobs_features.reshape(batch_size, -1) # [128,256]
             # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
             this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
             this_n_point_cloud = this_n_point_cloud[..., :3]
@@ -299,13 +305,13 @@ class DP3(BasePolicy):
             nobs_features = nobs_features.reshape(batch_size, horizon, -1)
             cond_data = torch.cat([nactions, nobs_features], dim=-1)
             trajectory = cond_data.detach()
-
+        # import pdb; pdb.set_trace()
 
         # generate impainting mask
         condition_mask = self.mask_generator(trajectory.shape)
 
         # Sample noise that we'll add to the images
-        noise = torch.randn(trajectory.shape, device=trajectory.device)
+        noise = torch.randn(trajectory.shape, device=trajectory.device) # [128,16,7]
 
         
         bsz = trajectory.shape[0]
@@ -313,7 +319,7 @@ class DP3(BasePolicy):
         timesteps = torch.randint(
             0, self.noise_scheduler.config.num_train_timesteps, 
             (bsz,), device=trajectory.device
-        ).long()
+        ).long() # [128]
 
         # Add noise to the clean images according to the noise magnitude at each timestep
         # (this is the forward diffusion process)
@@ -329,7 +335,7 @@ class DP3(BasePolicy):
         noisy_trajectory[condition_mask] = cond_data[condition_mask]
 
         # Predict the noise residual
-        
+        # import pdb; pdb.set_trace()
         pred = self.model(sample=noisy_trajectory, 
                         timestep=timesteps, 
                             local_cond=local_cond, 

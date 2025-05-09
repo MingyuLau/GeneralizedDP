@@ -287,7 +287,8 @@ class TrainDP3Workspace:
                     batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
                     obs_dict = batch['obs']
                     gt_action = batch['action']
-                    
+                    for key in obs_dict.keys():
+                        print(f"key: {key}, obs_dict[key].shape: {obs_dict[key].shape}")
                     result = policy.predict_action(obs_dict)
                     pred_action = result['action_pred']
                     mse = torch.nn.functional.mse_loss(pred_action, gt_action)
@@ -334,14 +335,20 @@ class TrainDP3Workspace:
             del step_log
     #<lxy>
     def eval_gdp3(self):
+        cfg = copy.deepcopy(self.cfg)
+        latest_ckpt_path = self.get_checkpoint_path(tag="latest")
+        lastest_ckpt_path = self.get_checkpoint_path(tag="latest")
+        if lastest_ckpt_path.is_file():
+            cprint(f"Resuming from checkpoint {lastest_ckpt_path}", 'magenta')
+            self.load_checkpoint(path=lastest_ckpt_path)
+        if 'uni_mix' in  os.path.basename(self.output_dir):
+            env_runner = hydra.utils.instantiate(
+            cfg.task.env_runner,
+            output_dir=self.output_dir)
         ########TODO: complete this function##########
-        # load the latest checkpoint
-        # cfg = copy.deepcopy(self.cfg)
+
         
-        # lastest_ckpt_path = self.get_checkpoint_path(tag="latest")
-        # if lastest_ckpt_path.is_file():
-        #     cprint(f"Resuming from checkpoint {lastest_ckpt_path}", 'magenta')
-        #     self.load_checkpoint(path=lastest_ckpt_path)
+
         
         # # configure env
         # env_runner: BaseRunner
@@ -363,6 +370,7 @@ class TrainDP3Workspace:
         #     if isinstance(value, float):
         #         cprint(f"{key}: {value:.4f}", 'magenta')
     #</lxy>
+        pass
     def eval(self):
         # load the latest checkpoint
         
@@ -378,6 +386,7 @@ class TrainDP3Workspace:
         env_runner = hydra.utils.instantiate(
             cfg.task.env_runner,
             output_dir=self.output_dir)
+        print(f"env_runner: {env_runner}")
         assert isinstance(env_runner, BaseRunner)
         policy = self.model
         if cfg.training.use_ema:

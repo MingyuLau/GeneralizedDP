@@ -5,7 +5,6 @@ import collections
 import tqdm
 import zarr
 import os
-
 from diffusion_policy_3d.env import MetaWorldEnv
 from diffusion_policy_3d.gym_util.multistep_wrapper import MultiStepWrapper
 from diffusion_policy_3d.gym_util.video_recording_wrapper import SimpleVideoRecordingWrapper
@@ -33,13 +32,13 @@ class MetaworldRunner(BaseRunner):
                  n_test=None,
                  device="cuda:0",
                  use_point_crop=True,
-                 num_points=512
+                 num_points=512,
+                 use_expert_trajectory=False,
                  ):
         super().__init__(output_dir)
         self.task_name = task_name
 
-        self.output_dir = output_dir
-        print(f"output_dir: {self.output_dir},{output_dir}")
+
         def env_fn(task_name):
             return MultiStepWrapper(
                 SimpleVideoRecordingWrapper(
@@ -59,30 +58,38 @@ class MetaworldRunner(BaseRunner):
         self.n_action_steps = n_action_steps
         self.max_steps = max_steps
         self.tqdm_interval_sec = tqdm_interval_sec
-        self.expert_trajectorys=self.load_expert_trajectory()
+        self.use_expert_trajectory = use_expert_trajectory
+        if use_expert_trajectory:
+            self.expert_trajectorys= self.load_expert_trajectory()
 
         self.logger_util_test = logger_util.LargestKRecorder(K=3)
         self.logger_util_test10 = logger_util.LargestKRecorder(K=5)
 
 
+
     def load_expert_trajectory(self):
         # 打开 Zarr 文件
-
-        traj_path= os.path.join('/home/lxy-24/workspace/GeneralizedDP/3D-Diffusion-Policy/test_data/metaworld_' + self.task_name + 'test_traj.zarr')
+        traj_path= os.path.join(self.output_dir, 'metaworld_' + self.task_name + 'test_traj.zarr')
+        print(f"traj_path: {traj_path}")
         zarr_root = zarr.open(traj_path, mode='r')
         
         # 假设 trajectory 数据保存在 'data' group 下
         zarr_data = zarr_root['data']
+        print(f"zarr_data: {zarr_data},{zarr_root}")
         # 加载具体字段，例如 observations, actions, rewards 等
-        observations = zarr_data['state'][:]
-        gt_actions = zarr_data["action"][:]
-        print(f"observations: {observations.shape}, gt_actions: {gt_actions.shape}")
+        observations = zarr_data['observations'][:]
+        actions = zarr_data['actions'][:]
+        rewards = zarr_data.get('rewards', None)  # optional
 
         # 可以进一步封装成字典返回
         return {
             'observations': observations,
-            'actions': gt_actions,
+            'actions': actions,
+            'rewards': rewards[:] if rewards is not None else None,
         }
+
+        
+
 
     def run(self, policy: BasePolicy, save_video=False):
         device = policy.device

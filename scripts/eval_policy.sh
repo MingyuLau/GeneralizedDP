@@ -32,5 +32,3 @@ python eval.py --config-name=${config_name}.yaml \
                             checkpoint.save_ckpt=${save_ckpt}
 
 
-
-                                

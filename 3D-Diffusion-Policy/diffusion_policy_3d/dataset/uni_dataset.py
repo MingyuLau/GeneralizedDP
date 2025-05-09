@@ -79,6 +79,7 @@ class UniDataset(BaseDataset):
         """
         合并多个 zarr 文件到一个 ReplayBuffer。
         """
+        print(f"merging {zarr_paths} zarr files")
         buffers = []
         for path in zarr_paths:
             buffer = ReplayBuffer.copy_from_path(
@@ -134,6 +135,7 @@ class UniDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
+        
         point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
 
         data = {

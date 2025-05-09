@@ -4,6 +4,7 @@ defaults:
 name: train_dp3
 
 task_name: ${task.name}
+test_task_name: ${task.test_task_name}
 shape_meta: ${task.shape_meta}
 exp_name: "debug"
 

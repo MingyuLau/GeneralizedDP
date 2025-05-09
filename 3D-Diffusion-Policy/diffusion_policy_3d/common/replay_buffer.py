@@ -221,6 +221,7 @@ class ReplayBuffer:
         if backend == 'numpy':
             print('backend argument is deprecated!')
             store = None
+        print(f"Loading {zarr_path} to memory")
         group = zarr.open(os.path.expanduser(zarr_path), 'r')
         return cls.copy_from_store(src_store=group.store, store=store, 
             keys=keys, chunks=chunks, compressors=compressors, 

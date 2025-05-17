@@ -17,7 +17,15 @@ from diffusion_policy_3d.model.diffusion.mask_generator import LowdimMaskGenerat
 from diffusion_policy_3d.common.pytorch_util import dict_apply
 from diffusion_policy_3d.common.model_util import print_params
 from diffusion_policy_3d.model.vision.pointnet_extractor import DP3Encoder
-
+def print_tensor_devices(obj, prefix="Batch"):
+    if isinstance(obj, torch.Tensor):
+        print(f"📦 {prefix} → device: {obj.device}, shape: {tuple(obj.shape)}")
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            print_tensor_devices(v, prefix=f"{prefix}[{k}]")
+    elif isinstance(obj, (list, tuple)):
+        for i, v in enumerate(obj):
+            print_tensor_devices(v, prefix=f"{prefix}[{i}]")
 class DP3(BasePolicy):
     def __init__(self, 
             shape_meta: dict,
@@ -40,11 +48,13 @@ class DP3(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
+            use_sparse_action=True,
             # parameters passed to step
             **kwargs):
         super().__init__()
 
         self.condition_type = condition_type
+        self.use_sparse_action = use_sparse_action
 
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
@@ -57,8 +67,9 @@ class DP3(BasePolicy):
             raise NotImplementedError(f"Unsupported action shape {action_shape}")
             
         obs_shape_meta = shape_meta['obs']
+        print(obs_shape_meta)
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
-
+        print(f"obs_dict: {obs_dict}")
 
         obs_encoder = DP3Encoder(observation_space=obs_dict,
                                                    img_crop_shape=crop_shape,
@@ -130,7 +141,12 @@ class DP3(BasePolicy):
 
 
         print_params(self)
-        
+    def sync_params(self, source_model=None):
+        if source_model is None:
+            return
+        for t, s in zip(self.parameters(), source_model.parameters()):
+            t.data.copy_(s.data)
+
     # ========= inference  ============
     def conditional_sample(self, 
             condition_data, condition_mask,
@@ -181,8 +197,8 @@ class DP3(BasePolicy):
         """
         # normalize input
         nobs = self.normalizer.normalize(obs_dict)
-        for key, value in nobs.items():
-            print(f"key: {key}, value.shape: {value.shape}")
+        # for key, value in nobs.items():
+        #     print(f"key: {key}, value.shape: {value.shape}")
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
@@ -254,6 +270,97 @@ class DP3(BasePolicy):
         
         return result
 
+
+    def predict_action_w_sparse(self, obs_dict: Dict[str, torch.Tensor],actions) -> Dict[str, torch.Tensor]:
+        """
+        obs_dict: must include "obs" key
+        result: must include "action" key
+        """
+        # normalize input
+
+        # for key, value in actions.items():
+        #     print(f"key: {key}, value.shape: {value.shape}")
+            
+        nobs = self.normalizer.normalize(obs_dict)
+        if actions is not None:
+            sparse_actions = self.normalizer['action'].normalize(actions)
+            nobs['sparse_actions'] = sparse_actions
+        
+        # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
+        if not self.use_pc_color:
+            nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+        this_n_point_cloud = nobs['point_cloud']
+        
+        # for key, value in nobs.items():
+        #     print(f"key1: {key}, value.shape: {value.shape}")
+        # print(f"actions.shape: {actions.shape}")
+        
+        value = next(iter(nobs.values()))
+        B, To = value.shape[:2]
+        T = self.horizon
+        Da = self.action_dim
+        Do = self.obs_feature_dim
+        To = self.n_obs_steps
+
+        # build input
+        device = self.device
+        dtype = self.dtype
+
+        # handle different ways of passing observation
+        local_cond = None
+        global_cond = None
+        if self.obs_as_global_cond:
+            # condition through global feature
+            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            if "cross_attention" in self.condition_type:
+                # treat as a sequence
+                global_cond = nobs_features.reshape(B, self.n_obs_steps, -1)
+            else:
+                # reshape back to B, Do
+                global_cond = nobs_features.reshape(B, -1)
+            # empty data for action
+            cond_data = torch.zeros(size=(B, T, Da), device=device, dtype=dtype)
+            cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
+        else:
+            # condition through impainting
+            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
+            nobs_features = self.obs_encoder(this_nobs)
+            # reshape back to B, T, Do
+            nobs_features = nobs_features.reshape(B, To, -1)
+            cond_data = torch.zeros(size=(B, T, Da+Do), device=device, dtype=dtype)
+            cond_mask = torch.zeros_like(cond_data, dtype=torch.bool)
+            cond_data[:,:To,Da:] = nobs_features
+            cond_mask[:,:To,Da:] = True
+
+        # run sampling
+        nsample = self.conditional_sample(
+            cond_data, 
+            cond_mask,
+            local_cond=local_cond,
+            global_cond=global_cond,
+            **self.kwargs)
+        
+        # unnormalize prediction
+        naction_pred = nsample[...,:Da]
+        action_pred = self.normalizer['action'].unnormalize(naction_pred)
+
+        # get action
+        start = To - 1
+        end = start + self.n_action_steps
+        action = action_pred[:,start:end]
+        
+        # get prediction
+
+
+        result = {
+            'action': action,
+            'action_pred': action_pred,
+        }
+        
+        return result
+    
+
     # ========= training  ============
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
@@ -270,9 +377,10 @@ class DP3(BasePolicy):
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
 ############
-        # sparse_stride = 4
-        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-        # nobs['sparse_actions'] = sparse_actions
+        if self.use_sparse_action:
+            sparse_stride = 4
+            sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+            nobs['sparse_actions'] = sparse_actions
 
         # import pdb; pdb.set_trace()
 ###########
@@ -287,8 +395,8 @@ class DP3(BasePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [256,1024,3] [256,7]
-            nobs_features = self.obs_encoder(this_nobs) # [256,128]
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:])) 
+            nobs_features = self.obs_encoder(this_nobs) 
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence

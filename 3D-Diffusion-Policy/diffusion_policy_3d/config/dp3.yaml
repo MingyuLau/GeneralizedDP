@@ -80,7 +80,7 @@ ema:
 dataloader:
   batch_size: 256
   num_workers: 16
-  shuffle: True
+  # shuffle: True
   pin_memory: True
   persistent_workers: False
 
@@ -100,6 +100,12 @@ optimizer:
 
 training:
   device: "cuda:0"
+  distributed:
+    enabled: true  # 启用分布式训练
+    backend: "nccl"  # 使用 NCCL 后端
+    world_size: 4  # 使用 4 个 GPU
+    rank: 0  # 这个进程的 rank
+    local_rank: 0  # 当前 GPU 的 local rank
   seed: 42
   debug: False
   resume: True
@@ -108,7 +114,7 @@ training:
   num_epochs: 3000
   gradient_accumulate_every: 1
   use_ema: True
-  rollout_every: 200
+  rollout_every: 3
   checkpoint_every: 1000
   val_every: 1
   sample_every: 5

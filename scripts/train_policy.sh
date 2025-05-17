@@ -11,9 +11,10 @@ save_ckpt=True
 
 alg_name=${1}
 task_name=${2}
+test_task_name=${3}
 config_name=${alg_name}
-addition_info=${3}
-seed=${4}
+addition_info=${4}
+seed=${5}
 exp_name=${task_name}-${alg_name}-${addition_info}
 run_dir="data/outputs/${exp_name}_seed${seed}"
 
@@ -38,9 +39,14 @@ cd 3D-Diffusion-Policy
 
 
 export HYDRA_FULL_ERROR=1 
-# export CUDA_VISIBLE_DEVICES=${gpu_id}
-python train.py --config-name=${config_name}.yaml \
+# export CUDA_VISIBLE_DEVICES=0
+torchrun \
+    --nproc_per_node=4 \
+    --master_addr=127.0.0.1 \
+    --master_port=29500 \
+    train.py --config-name=${config_name}.yaml \
                             task=${task_name} \
+                            test_task_name=${test_task_name} \
                             hydra.run.dir=${run_dir} \
                             training.debug=$DEBUG \
                             training.seed=${seed} \

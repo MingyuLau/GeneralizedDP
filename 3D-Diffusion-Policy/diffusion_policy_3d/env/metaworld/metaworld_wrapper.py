@@ -28,7 +28,6 @@ class MetaWorldEnv(gym.Env):
 
         if '-v2' not in task_name:
             task_name = task_name + '-v2-goal-observable'
-
         self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
         self.env._freeze_rand_vec = False
 

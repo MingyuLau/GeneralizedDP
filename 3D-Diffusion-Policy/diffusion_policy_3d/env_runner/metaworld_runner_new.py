@@ -70,12 +70,10 @@ class MetaworldRunner(BaseRunner):
     def load_expert_trajectory(self):
         # 打开 Zarr 文件
         traj_path= os.path.join(self.output_dir, 'metaworld_' + self.task_name + 'test_traj.zarr')
-        print(f"traj_path: {traj_path}")
         zarr_root = zarr.open(traj_path, mode='r')
         
         # 假设 trajectory 数据保存在 'data' group 下
         zarr_data = zarr_root['data']
-        print(f"zarr_data: {zarr_data},{zarr_root}")
         # 加载具体字段，例如 observations, actions, rewards 等
         observations = zarr_data['observations'][:]
         actions = zarr_data['actions'][:]

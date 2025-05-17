@@ -1,4 +1,5 @@
 from typing import Dict, List
+import os
 import torch
 import numpy as np
 import copy
@@ -70,9 +71,20 @@ class UniDataset(BaseDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
 
-    def get_subdirs_with_path(self,parent_dir):
+    def get_subdirs_with_path(self, parent_dir):
         path = Path(parent_dir)
-        return [str(child) for child in path.iterdir() if child.is_dir()]
+        all_paths = [str(child) for child in path.iterdir() if child.is_dir()]
+
+        # 分配给每个进程一个子路径（可选按 rank）
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        rank = int(os.environ.get("RANK", 0))
+        if world_size > 1:
+            all_paths.sort()
+            sub_paths = all_paths[rank::world_size]  # 每个 rank 处理部分路径
+            return sub_paths
+        else:
+            return all_paths
+
 
 
     def _merge_replay_buffers(self, zarr_paths: List[str]) -> ReplayBuffer:
@@ -114,21 +126,28 @@ class UniDataset(BaseDataset):
         val_set.train_mask = ~self.train_mask
         return val_set
 
-    def get_normalizer(self, mode='limits', **kwargs):
-        # data = {
-        #     'action': np.concatenate([buf['action'] for buf in self.replay_buffers]),
-        #     'agent_pos': np.concatenate([buf['state'][..., :] for buf in self.replay_buffers]),
-        #     'point_cloud': np.concatenate([buf['point_cloud'] for buf in self.replay_buffers]),
-        # }
+    def get_normalizer(self, mode='limits', device='cpu', **kwargs):
+        # 从 replay buffer 构造数据
         data = {
             'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'][...,:],
+            'agent_pos': self.replay_buffer['state'][..., :],
             'point_cloud': self.replay_buffer['point_cloud'],
         }
+        device = torch.device(f"cuda:{device}")
+        # 将所有张量或数组转为 torch.Tensor 并搬到目标 device
+        def to_device(x):
+            if isinstance(x, np.ndarray):
+                x = torch.from_numpy(x)
+            return x.to(device)
+
+        data = {k: to_device(v) for k, v in data.items()}
+
+        # 拟合 normalizer
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
-        # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
+
         return normalizer
+
 
     def __len__(self) -> int:
         return len(self.sampler)

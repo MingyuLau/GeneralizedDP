@@ -210,6 +210,8 @@ class DP3Encoder(nn.Module):
                  pointcloud_encoder_cfg=None,
                  use_pc_color=False,
                  pointnet_type='pointnet',
+                 sparse_mlp_size=(64, 64), sparse_mlp_activation_fn=nn.ReLU,
+                 use_sparse_action=True,
                  ):
         super().__init__()
         self.imagination_key = 'imagin_robot'
@@ -217,6 +219,7 @@ class DP3Encoder(nn.Module):
         self.point_cloud_key = 'point_cloud'
         self.rgb_image_key = 'image'
         self.n_output_channels = out_channel
+        self.use_sparse_action = use_sparse_action
         
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
         self.point_cloud_shape = observation_space[self.point_cloud_key]
@@ -256,7 +259,19 @@ class DP3Encoder(nn.Module):
 
         self.n_output_channels  += output_dim
         self.state_mlp = nn.Sequential(*create_mlp(self.state_shape[0], output_dim, net_arch, state_mlp_activation_fn))
-
+        if use_sparse_action:
+            self.sparse_actions_key = 'sparse_actions'
+            self.sparse_actions_shape = observation_space[self.sparse_actions_key]
+            cprint(f"[DP3Encoder] sparse action shape: {self.sparse_actions_shape}", "yellow")
+            if len(sparse_mlp_size) == 0:
+                raise RuntimeError(f"Sparse mlp size is empty")
+            elif len(sparse_mlp_size) == 1:
+                sparse_arch = []
+            else:
+                sparse_arch = sparse_mlp_size[:-1]
+            sparse_output_dim = sparse_mlp_size[-1]
+            self.saprse_mlp = nn.Sequential(*create_mlp(self.sparse_actions_shape[0], sparse_output_dim, sparse_arch, sparse_mlp_activation_fn))
+            self.n_output_channels  += sparse_output_dim
         cprint(f"[DP3Encoder] output dim: {self.n_output_channels}", "red")
 
 
@@ -273,7 +288,12 @@ class DP3Encoder(nn.Module):
             
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
-        final_feat = torch.cat([pn_feat, state_feat], dim=-1)
+        if self.use_sparse_action:
+            sparse_actions = observations[self.sparse_actions_key]
+            sparse_feat = self.saprse_mlp(sparse_actions)
+            final_feat = torch.cat([pn_feat, state_feat,sparse_feat], dim=-1)
+        else:
+            final_feat = torch.cat([pn_feat, state_feat], dim=-1)
         return final_feat
 
 

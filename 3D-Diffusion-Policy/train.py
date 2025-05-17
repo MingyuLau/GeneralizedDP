@@ -32,6 +32,20 @@ from diffusion_policy_3d.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy_3d.model.diffusion.ema_model import EMAModel
 from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
 
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader, DistributedSampler
+
+def print_tensor_devices(obj, prefix="Batch"):
+    if isinstance(obj, torch.Tensor):
+        print(f"📦 {prefix} → device: {obj.device}, shape: {tuple(obj.shape)}")
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            print_tensor_devices(v, prefix=f"{prefix}[{k}]")
+    elif isinstance(obj, (list, tuple)):
+        for i, v in enumerate(obj):
+            print_tensor_devices(v, prefix=f"{prefix}[{i}]")
+
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 class TrainDP3Workspace:
@@ -39,6 +53,23 @@ class TrainDP3Workspace:
     exclude_keys = tuple()
 
     def __init__(self, cfg: OmegaConf, output_dir=None):
+        #multigpu
+        self.rank = int(os.environ.get("LOCAL_RANK", 0))
+        print(f"rank: {self.rank}")
+        self.world_size = int(os.environ.get("WORLD_SIZE", 1))
+        torch.cuda.set_device(self.rank)  # 将当前进程绑定到本地 GPU
+
+        if cfg.training.distributed.enabled:
+            dist.init_process_group(
+                backend="nccl",
+                rank=self.rank,
+                world_size=self.world_size,
+                init_method="env://"
+            )
+        else:
+            self.rank = 0
+        
+        
         self.cfg = cfg
         self._output_dir = output_dir
         self._saving_thread = None
@@ -52,17 +83,30 @@ class TrainDP3Workspace:
         # configure model
         self.model: DP3 = hydra.utils.instantiate(cfg.policy)
 
-        self.ema_model: DP3 = None
-        if cfg.training.use_ema:
-            try:
-                self.ema_model = copy.deepcopy(self.model)
-            except: # minkowski engine could not be copied. recreate it
-                self.ema_model = hydra.utils.instantiate(cfg.policy)
-
-
         # configure training state
         self.optimizer = hydra.utils.instantiate(
             cfg.optimizer, params=self.model.parameters())
+        device = torch.device(f"cuda:{self.rank}")
+        
+     
+        self.model.to(device)
+        self.ema_model = None
+        if cfg.training.use_ema:
+            try:
+                self.ema_model = copy.deepcopy(self.model)  # safe now
+            except Exception:
+                # fallback（用于如 MinkowskiEngine 无法 deepcopy 的情况）
+                self.ema_model = hydra.utils.instantiate(cfg.policy)
+                self.ema_model.load_state_dict(self.model.state_dict())
+            self.ema_model.to(device)
+
+        if self.ema_model is not None:
+            self.ema_model.to(device)
+        optimizer_to(self.optimizer, device)
+        
+           # ddp 
+        self.model = DDP(self.model, device_ids=[self.rank])
+        self.ema_model = DDP(self.ema_model, device_ids=[self.rank])
 
         # configure training state
         self.global_step = 0
@@ -97,21 +141,21 @@ class TrainDP3Workspace:
                 self.load_checkpoint(path=lastest_ckpt_path)
 
         # configure dataset
-        dataset: BaseDataset
-        # import pdb; pdb.set_trace()
-        dataset = hydra.utils.instantiate(cfg.task.dataset)
-
+        dataset: BaseDataset = hydra.utils.instantiate(self.cfg.task.dataset)
+        
         assert isinstance(dataset, BaseDataset), print(f"dataset must be BaseDataset, got {type(dataset)}")
-        train_dataloader = DataLoader(dataset, **cfg.dataloader)
-        normalizer = dataset.get_normalizer()
+        train_sampler = DistributedSampler(dataset, num_replicas=self.world_size, rank=self.rank)
+        train_dataloader = DataLoader(dataset, **self.cfg.dataloader, sampler=train_sampler)
+
+        normalizer = dataset.get_normalizer(device=self.rank)
 
         # configure validation dataset
         val_dataset = dataset.get_validation_dataset()
         val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
 
-        self.model.set_normalizer(normalizer)
+        self.model.module.set_normalizer(normalizer)
         if cfg.training.use_ema:
-            self.ema_model.set_normalizer(normalizer)
+            self.ema_model.module.set_normalizer(normalizer)
 
         # configure lr scheduler
         lr_scheduler = get_scheduler(
@@ -165,11 +209,7 @@ class TrainDP3Workspace:
         )
 
         # device transfer
-        device = torch.device(cfg.training.device)
-        self.model.to(device)
-        if self.ema_model is not None:
-            self.ema_model.to(device)
-        optimizer_to(self.optimizer, device)
+        device = torch.device(f"cuda:{self.rank}")
 
         # save batch for sampling
         train_sampling_batch = None
@@ -178,6 +218,7 @@ class TrainDP3Workspace:
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         for local_epoch_idx in range(cfg.training.num_epochs):
+            train_sampler.set_epoch(self.epoch)
             step_log = dict()
             # ========= train for this epoch ==========
             train_losses = list()
@@ -192,7 +233,8 @@ class TrainDP3Workspace:
                 
                     # compute loss
                     t1_1 = time.time()
-                    raw_loss, loss_dict = self.model.compute_loss(batch)
+                    # 打印 batch 中每个张量的 device（防止漏搬）
+                    raw_loss, loss_dict = self.model.module.compute_loss(batch)
                     loss = raw_loss / cfg.training.gradient_accumulate_every
                     loss.backward()
                     
@@ -203,6 +245,10 @@ class TrainDP3Workspace:
                         self.optimizer.step()
                         self.optimizer.zero_grad()
                         lr_scheduler.step()
+                        
+                    if self.cfg.training.use_ema:
+                        self.ema_model.module.sync_params()
+                        
                     t1_3 = time.time()
                     # update ema
                     if cfg.training.use_ema:
@@ -245,9 +291,9 @@ class TrainDP3Workspace:
             step_log['train_loss'] = train_loss
 
             # ========= eval for this epoch ==========
-            policy = self.model
+            policy = self.model.module
             if cfg.training.use_ema:
-                policy = self.ema_model
+                policy = self.ema_model.module
             policy.eval()
 
             # run rollout
@@ -270,7 +316,7 @@ class TrainDP3Workspace:
                             leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                         for batch_idx, batch in enumerate(tepoch):
                             batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-                            loss, loss_dict = self.model.compute_loss(batch)
+                            loss, loss_dict = self.model.module.compute_loss(batch)
                             val_losses.append(loss)
                             if (cfg.training.max_val_steps is not None) \
                                 and batch_idx >= (cfg.training.max_val_steps-1):
@@ -287,9 +333,12 @@ class TrainDP3Workspace:
                     batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
                     obs_dict = batch['obs']
                     gt_action = batch['action']
-                    for key in obs_dict.keys():
-                        print(f"key: {key}, obs_dict[key].shape: {obs_dict[key].shape}")
-                    result = policy.predict_action(obs_dict)
+                    # for key in obs_dict.keys():
+                    #     print(f"key: {key}, obs_dict[key].shape: {obs_dict[key].shape}")
+                    if policy.use_sparse_action:
+                        result = policy.predict_action_w_sparse(obs_dict,gt_action)
+                    else:
+                        result = policy.predict_action(obs_dict)
                     pred_action = result['action_pred']
                     mse = torch.nn.functional.mse_loss(pred_action, gt_action)
                     step_log['train_action_mse_error'] = mse.item()
@@ -302,7 +351,6 @@ class TrainDP3Workspace:
 
             if env_runner is None:
                 step_log['test_mean_score'] = - train_loss
-                
             # checkpoint
             if (self.epoch % cfg.training.checkpoint_every) == 0 and cfg.checkpoint.save_ckpt:
                 # checkpointing
@@ -325,6 +373,8 @@ class TrainDP3Workspace:
                 if topk_ckpt_path is not None:
                     self.save_checkpoint(path=topk_ckpt_path)
             # ========= eval end for this epoch ==========
+            if self.cfg.training.use_ema:
+                self.ema_model.module.sync_params()
             policy.train()
 
             # end of epoch
@@ -333,6 +383,10 @@ class TrainDP3Workspace:
             self.global_step += 1
             self.epoch += 1
             del step_log
+            
+            
+            
+            
     #<lxy>
     def eval_gdp3(self):
         cfg = copy.deepcopy(self.cfg)

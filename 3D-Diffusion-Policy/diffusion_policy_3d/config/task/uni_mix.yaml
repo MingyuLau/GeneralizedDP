@@ -6,14 +6,16 @@ test_task_name: button-press
 
 
 shape_meta: &shape_meta
-  # acceptable types: rgb, low_dim
   obs:
     point_cloud:
       shape: [1024, 3]
       type: point_cloud
     agent_pos:
       shape: [9]
-      type: low_dimx
+      type: low_dim
+    sparse_actions:
+      shape: [4]
+      type: low_dim
   action:
     shape: [4]
 
@@ -26,7 +28,7 @@ env_runner:
   n_envs: null
   n_train: null
   n_test: null
-  task_name: ${test_task_name}  # 使用点语法来访问第一个元素
+  task_name: ${test_task_name}
   device: ${training.device}
   use_point_crop: ${policy.use_point_crop}
   

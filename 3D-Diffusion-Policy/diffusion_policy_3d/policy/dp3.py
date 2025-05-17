@@ -17,15 +17,7 @@ from diffusion_policy_3d.model.diffusion.mask_generator import LowdimMaskGenerat
 from diffusion_policy_3d.common.pytorch_util import dict_apply
 from diffusion_policy_3d.common.model_util import print_params
 from diffusion_policy_3d.model.vision.pointnet_extractor import DP3Encoder
-def print_tensor_devices(obj, prefix="Batch"):
-    if isinstance(obj, torch.Tensor):
-        print(f"📦 {prefix} → device: {obj.device}, shape: {tuple(obj.shape)}")
-    elif isinstance(obj, dict):
-        for k, v in obj.items():
-            print_tensor_devices(v, prefix=f"{prefix}[{k}]")
-    elif isinstance(obj, (list, tuple)):
-        for i, v in enumerate(obj):
-            print_tensor_devices(v, prefix=f"{prefix}[{i}]")
+
 class DP3(BasePolicy):
     def __init__(self, 
             shape_meta: dict,
@@ -141,12 +133,7 @@ class DP3(BasePolicy):
 
 
         print_params(self)
-    def sync_params(self, source_model=None):
-        if source_model is None:
-            return
-        for t, s in zip(self.parameters(), source_model.parameters()):
-            t.data.copy_(s.data)
-
+        
     # ========= inference  ============
     def conditional_sample(self, 
             condition_data, condition_mask,
@@ -283,6 +270,7 @@ class DP3(BasePolicy):
             
         nobs = self.normalizer.normalize(obs_dict)
         if actions is not None:
+            print(f"actions.shape: {actions.shape}")
             sparse_actions = self.normalizer['action'].normalize(actions)
             nobs['sparse_actions'] = sparse_actions
         
@@ -395,8 +383,8 @@ class DP3(BasePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:])) 
-            nobs_features = self.obs_encoder(this_nobs) 
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [256,1024,3] [256,7]
+            nobs_features = self.obs_encoder(this_nobs) # [256,128]
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence

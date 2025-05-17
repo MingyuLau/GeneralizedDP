@@ -39,12 +39,8 @@ cd 3D-Diffusion-Policy
 
 
 export HYDRA_FULL_ERROR=1 
-# export CUDA_VISIBLE_DEVICES=0
-torchrun \
-    --nproc_per_node=4 \
-    --master_addr=127.0.0.1 \
-    --master_port=29500 \
-    train.py --config-name=${config_name}.yaml \
+# export CUDA_VISIBLE_DEVICES=${gpu_id}
+python train.py --config-name=${config_name}.yaml \
                             task=${task_name} \
                             test_task_name=${test_task_name} \
                             hydra.run.dir=${run_dir} \

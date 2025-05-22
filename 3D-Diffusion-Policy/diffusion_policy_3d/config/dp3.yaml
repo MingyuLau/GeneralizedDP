@@ -99,7 +99,7 @@ optimizer:
   weight_decay: 1.0e-6
 
 training:
-  device: "cuda:0"
+  device: "cuda:1"
   seed: 42
   debug: False
   resume: True
@@ -108,7 +108,7 @@ training:
   num_epochs: 3000
   gradient_accumulate_every: 1
   use_ema: True
-  rollout_every: 3
+  rollout_every: 30
   checkpoint_every: 1000
   val_every: 1
   sample_every: 5

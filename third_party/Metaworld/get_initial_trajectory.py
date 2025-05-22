@@ -38,7 +38,7 @@ def main(args):
             cprint('Exiting', 'red')
             return
 
-    e = MetaWorldEnv(env_name, device="cuda:0", use_point_crop=True)
+    e = MetaWorldEnv(env_name, device="cuda:1", use_point_crop=True)
     test_traj_num = args.test_traj_num
 
     # 只需要存储轨迹位置

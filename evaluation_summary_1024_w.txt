@@ -1,0 +1,1 @@
+task_name,command,mean_traj_rewards,mean_success_rates,test_mean_score,SR_test_L3,SR_test_L5

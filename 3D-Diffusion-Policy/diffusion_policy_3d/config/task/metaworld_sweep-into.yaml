@@ -28,7 +28,7 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy_3d.dataset.metaworld_dataset.MetaworldDataset
-  zarr_path: data/metaworld_sweep-into_expert.zarr
+  zarr_path: /data1/lxy-24/Data/Maniskill/unimix/WhiteScale___GeneralizedDP3/data/metaworld_sweep-into_expert.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

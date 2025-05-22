@@ -18,10 +18,10 @@ gpu_id=${6}
 #首先获得当前任务的初始参考轨迹
 cd third_party/Metaworld
 task_name=${task_name}
-python get_initial_trajectory.py --env_name=${test_task_name} \
-            --root_dir "../../3D-Diffusion-Policy/test_data/" \
-            --test_traj_num 10 \
-            --seed_base ${seed} \
+# python get_initial_trajectory.py --env_name=${test_task_name} \
+#             --root_dir "../../3D-Diffusion-Policy/test_data/" \
+#             --test_traj_num 10 \
+#             --seed_base ${seed} \
             
 
 
@@ -35,7 +35,7 @@ python evaluation.py --config-name=${config_name}.yaml \
                             hydra.run.dir=${run_dir} \
                             training.debug=$DEBUG \
                             training.seed=${seed} \
-                            training.device="cuda:0" \
+                            training.device="cuda:1" \
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             checkpoint.save_ckpt=${save_ckpt}

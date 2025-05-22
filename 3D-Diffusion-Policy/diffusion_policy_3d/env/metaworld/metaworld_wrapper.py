@@ -20,7 +20,7 @@ TASK_BOUDNS = {
 class MetaWorldEnv(gym.Env):
     metadata = {"render.modes": ["rgb_array"], "video.frames_per_second": 10}
 
-    def __init__(self, task_name, device="cuda:0", 
+    def __init__(self, task_name, device="cuda:1", 
                  use_point_crop=True,
                  num_points=1024,
                  ):

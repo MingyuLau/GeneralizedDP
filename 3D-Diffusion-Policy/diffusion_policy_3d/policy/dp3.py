@@ -270,7 +270,6 @@ class DP3(BasePolicy):
             
         nobs = self.normalizer.normalize(obs_dict)
         if actions is not None:
-            print(f"actions.shape: {actions.shape}")
             sparse_actions = self.normalizer['action'].normalize(actions)
             nobs['sparse_actions'] = sparse_actions
         

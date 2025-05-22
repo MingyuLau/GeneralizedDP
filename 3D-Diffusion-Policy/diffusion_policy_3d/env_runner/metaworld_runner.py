@@ -47,14 +47,16 @@ class MetaworldRunner(BaseRunner):
                  task_name=None,
                  n_train=None,
                  n_test=None,
-                 device="cuda:0",
+                 device="cuda:1",
                  use_point_crop=True,
-                 num_points=512,
+                 num_points=1024,
                  use_sparse_action=True,
                  ):
         super().__init__(output_dir)
         self.task_name = task_name
-
+        print(eval_episodes, max_steps, n_obs_steps, n_action_steps, fps, crf, render_size, tqdm_interval_sec, n_envs, task_name, n_train, n_test, device, use_point_crop, num_points, use_sparse_action)
+# 20 1000 2 8 10 22 84 5.0 None basketball None None cuda:1 True 512 False   
+# 20 1000 2 8 10 22 84 5.0 None basketball None None cuda:1 True 512 False
         self.output_dir = output_dir
         print(f"output_dir: {self.output_dir},{output_dir}")
         def env_fn(task_name):

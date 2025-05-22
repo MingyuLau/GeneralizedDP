@@ -263,6 +263,7 @@ class TrainDP3Workspace:
             
                 
             # run validation
+            
             if (self.epoch % cfg.training.val_every) == 0 and RUN_VALIDATION:
                 with torch.no_grad():
                     val_losses = list()

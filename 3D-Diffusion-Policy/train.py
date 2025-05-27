@@ -68,6 +68,51 @@ class TrainDP3Workspace:
         self.global_step = 0
         self.epoch = 0
 
+    def _format_joint_to_state(self, joints):
+        """
+        Format the robot joint state into the unified state vector.
+
+        Args:
+            joints (torch.Tensor): The joint state to be formatted. 
+                qpos ([B, N, 14]).
+
+        Returns:
+            state (torch.Tensor): The formatted state for RDT ([B, N, 128]). 
+        """
+        # Rescale the gripper
+        # joints = joints / torch.tensor(
+        #     [[[1, 1, 1, 1, 1, 1, 4.7908, 1, 1, 1, 1, 1, 1, 4.7888]]],
+        #     device=joints.device, dtype=joints.dtype
+        # )
+        
+        # normalize to -1,1
+        joints = (joints - self.state_min) / (self.state_max - self.state_min) * 2 - 1
+        B, N, _ = joints.shape
+        state = torch.zeros(
+            (B, N, self.args["model"]["state_token_dim"]), 
+            device=joints.device, dtype=joints.dtype
+        )
+        # assemble the unifed state vector
+        state[:, :, MANISKILL_INDICES] = joints
+        state_elem_mask = torch.zeros(
+            (B, self.args["model"]["state_token_dim"]),
+            device=joints.device, dtype=joints.dtype
+        )
+        state_elem_mask[:, MANISKILL_INDICES] = 1
+        return state, state_elem_mask
+
+        
+    def _unformat_action_to_joint(self, action):
+        action_indices = MANISKILL_INDICES
+        joints = action[:, :, action_indices]
+        
+        # denormalize to action space 
+
+        joints = (joints + 1) / 2 * (self.action_max - self.action_min) + self.action_min
+        
+        return joints
+    
+
     def run(self):
         cfg = copy.deepcopy(self.cfg)
         
@@ -186,6 +231,7 @@ class TrainDP3Workspace:
                 for batch_idx, batch in enumerate(tepoch):
                     t1 = time.time()
                     # device transfer
+                    
                     batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                     if train_sampling_batch is None:
                         train_sampling_batch = batch

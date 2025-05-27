@@ -30,7 +30,7 @@ class MetaworldRunner(BaseRunner):
                  task_name=None,
                  n_train=None,
                  n_test=None,
-                 device="cuda:0",
+                 device="cuda:1",
                  use_point_crop=True,
                  num_points=512,
                  use_expert_trajectory=False,

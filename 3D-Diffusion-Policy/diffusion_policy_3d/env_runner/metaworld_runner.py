@@ -47,7 +47,7 @@ class MetaworldRunner(BaseRunner):
                  task_name=None,
                  n_train=None,
                  n_test=None,
-                 device="cuda:0",
+                 device="cuda:1",
                  use_point_crop=True,
                  num_points=512,
                  use_sparse_action=True,
@@ -133,6 +133,7 @@ class MetaworldRunner(BaseRunner):
                     obs_dict_input = {}
                     obs_dict_input['point_cloud'] = obs_dict['point_cloud'].unsqueeze(0)
                     obs_dict_input['agent_pos'] = obs_dict['agent_pos'].unsqueeze(0)
+                    print(obs_dict_input['agent_pos'].shape)
                     # for key in obs_dict.keys():
                     #     print(f"key: {key}, obs_dict[key].shape: {obs_dict[key].shape}")
                     if self.use_sparse_action:
@@ -149,9 +150,10 @@ class MetaworldRunner(BaseRunner):
                 np_action_dict = dict_apply(action_dict,
                                             lambda x: x.detach().to('cpu').numpy())
                 action = np_action_dict['action'].squeeze(0)
+                print(action.shape)
 
                 obs, reward, done, info = env.step(action)
-
+           
 
                 traj_reward += reward
                 done = np.all(done)

@@ -155,8 +155,6 @@ class ReplayBuffer:
         """
         src_root = zarr.group(src_store)
         root = None
-        for key, value in src_root.items():
-            print(f"Replay Buffer: {key}, shape {value}")
         if store is None:
             # numpy backend
             meta = dict()

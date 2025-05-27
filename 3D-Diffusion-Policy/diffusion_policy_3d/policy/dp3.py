@@ -59,10 +59,7 @@ class DP3(BasePolicy):
             raise NotImplementedError(f"Unsupported action shape {action_shape}")
             
         obs_shape_meta = shape_meta['obs']
-        print(obs_shape_meta)
         obs_dict = dict_apply(obs_shape_meta, lambda x: x['shape'])
-        print(f"obs_dict: {obs_dict}")
-
         obs_encoder = DP3Encoder(observation_space=obs_dict,
                                                    img_crop_shape=crop_shape,
                                                 out_channel=encoder_output_dim,
@@ -258,7 +255,7 @@ class DP3(BasePolicy):
         return result
 
 
-    def predict_action_w_sparse(self, obs_dict: Dict[str, torch.Tensor],actions) -> Dict[str, torch.Tensor]:
+    def predict_action_w_sparse(self, obs_dict: Dict[str, torch.Tensor],actions,time_step=None) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         result: must include "action" key
@@ -272,8 +269,22 @@ class DP3(BasePolicy):
         if actions is not None:
             print(f"actions.shape: {actions.shape}")
             sparse_actions = self.normalizer['action'].normalize(actions)
+            if time_step is not None:
+                noise = torch.randn_like(sparse_actions) 
+                noise_level = time_step.float() / 1000  
+                sparse_actions = sparse_actions + noise * noise_level 
+            else:
+                noise_level = 0.05
+                noise = sparse_actions * torch.clamp(torch.randn_like(sparse_actions), -1.0, 1.0) * noise_level
+                noise_ratio = torch.norm(noise) / torch.norm(sparse_actions)  # 使用 L2 范数计算比例
+                print("Noise to original data ratio:", noise_ratio.item())
+                elementwise_ratio = noise / (sparse_actions + 1e-8)
+
+                print("逐元素的噪声比例:", elementwise_ratio)
+                sparse_actions = sparse_actions + noise  
+                
             nobs['sparse_actions'] = sparse_actions
-        
+            
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
@@ -286,6 +297,7 @@ class DP3(BasePolicy):
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
         T = self.horizon
+        print(self.horizon)
         Da = self.action_dim
         Do = self.obs_feature_dim
         To = self.n_obs_steps
@@ -366,9 +378,39 @@ class DP3(BasePolicy):
         horizon = nactions.shape[1]
 ############
         if self.use_sparse_action:
+            
+            #######均匀噪声########
+            # sparse_stride = 4
+            # sparse_actions = nactions[:, ::sparse_stride]  
+            
+            # #add noise
+            # noise_level = 0.05 
+            # noise = sparse_actions * torch.clamp(torch.randn_like(sparse_actions), -1.0, 1.0) * noise_level
+            # noise_ratio = torch.norm(noise) / torch.norm(sparse_actions)  # 使用 L2 范数计算比例
+            # elementwise_ratio = noise / (sparse_actions + 1e-8)
+            # vlm_signal = sparse_actions + noise
+
+            # nobs['sparse_actions'] = vlm_signal
+            
+            #######线性增加########
             sparse_stride = 4
-            sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-            nobs['sparse_actions'] = sparse_actions
+            sparse_actions = nactions[:, ::sparse_stride]  
+            
+            base_noise_level = 0.05
+            B, N = sparse_actions.shape 
+
+            # 创建线性增长的噪声系数：[1/N, 2/N, ..., N/N]
+            step_factors = torch.linspace(1, N, steps=N, device=sparse_actions.device) / N
+            noise_levels = base_noise_level * step_factors  # [N]
+            noise_levels = noise_levels.unsqueeze(0).expand(B, -1)  # [B, N]
+
+            noise = sparse_actions * torch.clamp(torch.randn_like(sparse_actions), -1.0, 1.0) * noise_levels
+
+            noise_ratio = torch.norm(noise) / torch.norm(sparse_actions + 1e-8)
+            elementwise_ratio = noise / (sparse_actions + 1e-8)
+
+            vlm_signal = sparse_actions + noise
+            nobs['sparse_actions'] = vlm_signal
 
         # import pdb; pdb.set_trace()
 ###########

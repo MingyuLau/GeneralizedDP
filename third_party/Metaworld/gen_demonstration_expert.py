@@ -41,7 +41,7 @@ def main(args):
 			return
 	os.makedirs(save_dir, exist_ok=True)
 
-	e = MetaWorldEnv(env_name, device="cuda:0", use_point_crop=True)
+	e = MetaWorldEnv(env_name, device="cuda:1", use_point_crop=True)
 	
 	num_episodes = args.num_episodes
 	cprint(f"Number of episodes : {num_episodes}", "yellow")

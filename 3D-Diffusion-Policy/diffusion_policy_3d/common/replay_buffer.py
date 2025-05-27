@@ -7,6 +7,7 @@ import numcodecs
 import numpy as np
 from functools import cached_property
 from termcolor import cprint
+from pathlib import Path
 
 def check_chunks_compatible(chunks: tuple, shape: tuple):
     assert len(shape) == len(chunks)
@@ -225,6 +226,22 @@ class ReplayBuffer:
         return cls.copy_from_store(src_store=group.store, store=store, 
             keys=keys, chunks=chunks, compressors=compressors, 
             if_exists=if_exists, **kwargs)
+
+    @classmethod
+    def copy_from_libero_demos(cls, demo_dirs, keys=None):
+        if keys is None:
+            keys = [f.stem for f in Path(demo_dirs[0]).glob('*.npy')]
+        episodes = []
+        for demo_dir in demo_dirs:
+            episode = {}
+            for key in keys:
+                arr = np.load(str(Path(demo_dir) / f"{key}.npy"))
+                episode[key] = arr
+            episodes.append(episode)
+        buffer = cls.create_empty_numpy()
+        for ep in episodes:
+            buffer.add_episode(ep)
+        return buffer
 
     # ============= save methods ===============
     def save_to_store(self, store, 
@@ -589,3 +606,5 @@ class ReplayBuffer:
                 compressor = self.resolve_compressor(value)
                 if compressor != arr.compressor:
                     rechunk_recompress_array(self.data, key, compressor=compressor)
+
+

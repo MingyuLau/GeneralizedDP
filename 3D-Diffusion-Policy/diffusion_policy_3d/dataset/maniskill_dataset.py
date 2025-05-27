@@ -28,7 +28,7 @@ class ManiskillDataset(BaseDataset):
         # zarr_paths = self.zarr_path
         
         zarr_paths = self.get_subdirs_with_path(self.zarr_path)
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
 
         # self.replay_buffers = []
         # for path in zarr_paths:
@@ -70,8 +70,12 @@ class ManiskillDataset(BaseDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
 
-    def get_subdirs_with_path(self,parent_dir):
+    def get_subdirs_with_path(self, parent_dir):
         path = Path(parent_dir)
+        # 如果有data目录，进入data目录
+        if (path / 'data').is_dir():
+            path = path / 'data'
+        # 返回所有子目录（demo_0, demo_1, ...）
         return [str(child) for child in path.iterdir() if child.is_dir()]
 
 

@@ -7,18 +7,6 @@ import numcodecs
 import numpy as np
 from functools import cached_property
 from termcolor import cprint
-import torch
-import pytorch3d.ops as torch3d_ops
-def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
-    # fast point cloud sampling using torch3d
-    points = torch.from_numpy(points).unsqueeze(0).cuda()
-    num_points = torch.tensor([num_points]).cuda()
-    # remember to only use coord to sample
-    _, sampled_indices = torch3d_ops.sample_farthest_points(points=points[...,:3], K=num_points)
-    points = points.squeeze(0).cpu().numpy()
-    points = points[sampled_indices.squeeze(0).cpu().numpy()]
-    return points, sampled_indices.squeeze(0).cpu().numpy()  # Return numpy array of indices
-
 
 def check_chunks_compatible(chunks: tuple, shape: tuple):
     assert len(shape) == len(chunks)
@@ -110,7 +98,6 @@ class ReplayBuffer:
         assert('episode_ends' in root['meta'])
         for key, value in root['data'].items():
             assert(value.shape[0] == root['meta']['episode_ends'][-1])
-            
         self.root = root
     
     # ============= create constructors ===============
@@ -172,42 +159,20 @@ class ReplayBuffer:
             # numpy backend
             meta = dict()
             if "meta" in src_root.keys():
-                for key, value in src_root['meta'].items():
+            
                     if len(value.shape) == 0:
                         meta[key] = np.array(value)
                     else:
                         meta[key] = value[:]
             else:
-                meta['episode_ends']=0
+                meta=None
 
             if keys is None:
                 keys = src_root['data'].keys()
             data = dict()
-            if any("demo" in key for key in src_root['data'].keys()):
-                
-                demo_keys = [key for key in src_root['data'].keys() if 'demo' in key]
-                for key in keys: 
-                    ends=[]
-                    array_list = []
-                    end=0
-                    for demo_key in demo_keys:
-                        if key in src_root['data'][demo_key].keys():
-                            arr = src_root['data'][demo_key][key][:]
-                        elif key in src_root['data'][demo_key]['obs'].keys():
-                            arr = src_root['data'][demo_key]['obs'][key][:]
-                        array_list.append(arr)
-                        end+=np.array(arr).shape[0]
-                        ends.append(end)  
-                    if array_list:
-                        merged_array = np.concatenate(array_list, axis=0)
-                        data[key] = merged_array    
-                        
-                meta['episode_ends']=ends
-            else:
-                for key in keys:
-                    arr = src_root['data'][key]
-                    data[key] = arr[:]
-            
+            for key in keys:
+                arr = src_root['data'][key]
+                data[key] = arr[:]
             root = {
                 'meta': meta,
                 'data': data

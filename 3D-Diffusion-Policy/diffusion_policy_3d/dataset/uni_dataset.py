@@ -142,7 +142,7 @@ class UniDataset(BaseDataset):
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
         point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
-
+        print(agent_pos.shape,point_cloud.shape)
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 6

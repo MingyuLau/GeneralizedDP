@@ -287,6 +287,7 @@ class DP3(BasePolicy):
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [256,1024,3] [256,7]
             nobs_features = self.obs_encoder(this_nobs) # [256,128]
+            
 
             if "cross_attention" in self.condition_type:
                 # treat as a sequence

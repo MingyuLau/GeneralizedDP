@@ -268,9 +268,9 @@ class DP3(BasePolicy):
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
 ############
-        # sparse_stride = 4
-        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-        # nobs['sparse_actions'] = sparse_actions
+        sparse_stride = 4
+        sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+        nobs['sparse_actions'] = sparse_actions
 
         # import pdb; pdb.set_trace()
 ###########

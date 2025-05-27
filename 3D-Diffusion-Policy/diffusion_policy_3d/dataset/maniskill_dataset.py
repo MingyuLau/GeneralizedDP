@@ -10,7 +10,7 @@ from diffusion_policy_3d.model.common.normalizer import LinearNormalizer, Single
 from diffusion_policy_3d.dataset.base_dataset import BaseDataset
 from pathlib import Path
 
-class UniDataset(BaseDataset):
+class ManiskillDataset(BaseDataset):
     def __init__(self,
             zarr_path, 
             horizon=1,
@@ -64,7 +64,7 @@ class UniDataset(BaseDataset):
             pad_after=pad_after,
             episode_mask=train_mask)
 
-
+        
         self.train_mask = train_mask
         self.horizon = horizon
         self.pad_before = pad_before
@@ -85,7 +85,7 @@ class UniDataset(BaseDataset):
                 path, keys=['state', 'action', 'point_cloud'])
                 # path, keys=['states', 'action', 'pointclouds']),
             buffers.append(buffer)
-        # import pdb; pdb.set_trace()
+        
         if not buffers:
             raise ValueError("No valid zarr paths provided")
         # buffers[0]['point_cloud'].shape
@@ -121,9 +121,10 @@ class UniDataset(BaseDataset):
         #     'agent_pos': np.concatenate([buf['state'][..., :] for buf in self.replay_buffers]),
         #     'point_cloud': np.concatenate([buf['point_cloud'] for buf in self.replay_buffers]),
         # }
+        
         data = {
             'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'][...,:],
+            'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
             'point_cloud': self.replay_buffer['point_cloud'],
         }
         # data = {
@@ -140,7 +141,7 @@ class UniDataset(BaseDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
+        agent_pos = sample['state'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
         point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
 
         data = {
@@ -155,9 +156,12 @@ class UniDataset(BaseDataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
         data = self._sample_to_data(sample)  # 这里只有两个key obs(point_cloud, agent_pos)和action (16,7)
-        # (16,1024,6)  (16,7)  (16,7)
-        # (16,1024,6)  (16,9)  (16,4)
-        import pdb; pdb.set_trace()
+        # maniskill 
+        # data['obs']['point_cloud'] (16,1024,6) 
+        # data['obs']['agent_pos'] (16,9)
+        # data['action'] (16,7) 
+        # do a transform to the maniskill pos
+        # import pdb; pdb.set_trace()
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 

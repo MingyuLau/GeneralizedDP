@@ -1,0 +1,39 @@
+name: calvin_libero_concat
+
+task_name: your_task_name  # 根据实际任务修改
+
+shape_meta: &shape_meta
+  # 根据实际传感器配置修改
+  obs:
+    rgb:
+      shape: [128, 128, 3]
+      type: rgb
+    depth:
+      shape: [128, 128]
+      type: low_dim
+  action:
+    shape: [7]
+
+env_runner:
+  _target_: diffusion_policy_3d.env_runner.your_runner.YourRunner  # 根据实际runner修改
+  # 其他环境参数...
+
+dataset:
+  _target_: diffusion_policy_3d.dataset.concat_dataset.ConcatDataset
+  datasets:
+    - _target_: diffusion_policy_3d.dataset.calvin_dataset.CalvinDataset
+      zarr_path: data/calvin_dataset.zarr  # 修改为实际路径
+      horizon: ${horizon}
+      pad_before: ${eval:'${n_obs_steps}-1'}
+      pad_after: ${eval:'${n_action_steps}-1'}
+      
+    - _target_: diffusion_policy_3d.dataset.libero_dataset.LiberoDataset
+      zarr_path: data/libero_dataset.zarr  # 修改为实际路径
+      horizon: ${horizon}
+      pad_before: ${eval:'${n_obs_steps}-1'}
+      pad_after: ${eval:'${n_action_steps}-1'}
+
+  # 公共参数
+  seed: 42
+  val_ratio: 0.1
+  max_train_episodes: null 

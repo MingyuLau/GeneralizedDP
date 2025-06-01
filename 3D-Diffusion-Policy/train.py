@@ -13,7 +13,7 @@ import torch
 import dill
 from omegaconf import OmegaConf
 import pathlib
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, ConcatDataset
 import copy
 import random
 import wandb
@@ -101,7 +101,10 @@ class TrainDP3Workspace:
         # import pdb; pdb.set_trace()
         dataset = hydra.utils.instantiate(cfg.task.dataset)
 
-        assert isinstance(dataset, BaseDataset), print(f"dataset must be BaseDataset, got {type(dataset)}")
+        assert isinstance(dataset, BaseDataset) or (
+            isinstance(dataset, ConcatDataset) and 
+            all(isinstance(d, BaseDataset) for d in dataset.datasets)
+        ), f"dataset must be BaseDataset or ConcatDataset of BaseDataset, got {type(dataset)}"
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         normalizer = dataset.get_normalizer()
 

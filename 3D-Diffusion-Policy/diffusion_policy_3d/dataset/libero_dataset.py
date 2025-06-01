@@ -70,18 +70,36 @@ class LiberoDataset(BaseDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
 
-    def get_subdirs_with_path(self, parent_dir):
+    def get_subdirs_with_path(self,parent_dir):
         path = Path(parent_dir)
-        # 兼容libero和calvin结构
-        if (path / 'data').is_dir():
-            path = path / 'data'
         return [str(child) for child in path.iterdir() if child.is_dir()]
 
 
-    def _merge_replay_buffers(self, demo_dirs: List[str]) -> ReplayBuffer:
-        # 直接用新方法
-        import pdb; pdb.set_trace()
-        return ReplayBuffer.copy_from_libero_demos(demo_dirs, keys=['state', 'action', 'point_cloud'])
+    def _merge_replay_buffers(self, zarr_paths: List[str]) -> ReplayBuffer:
+        """
+        合并多个 zarr 文件到一个 ReplayBuffer。
+        """
+        buffers = []
+        for path in zarr_paths:
+            buffer = ReplayBuffer.copy_from_path(
+                path, keys=[ 'actions', 'pointcloud','robot_states'])
+                # path, keys=['states', 'action', 'pointclouds']),
+            buffers.append(buffer)
+        
+        if not buffers:
+            raise ValueError("No valid zarr paths provided")
+        # buffers[0]['point_cloud'].shape
+        merged_buffer = ReplayBuffer.create_empty_numpy()  # 或 create_empty_zarr()
+
+        # 3. 合并数据（逐个 episode 添加）
+        for buf in buffers:
+            for episode_idx in range(buf.n_episodes):
+                # 获取单个 episode 的数据
+                episode_data = buf.get_episode(episode_idx)
+                # 添加到 merged_buffer
+                merged_buffer.add_episode(episode_data)
+        # import pdb; pdb.set_trace()
+        return merged_buffer
 
 
     def get_validation_dataset(self):
@@ -105,9 +123,9 @@ class LiberoDataset(BaseDataset):
         # }
         
         data = {
-            'action': self.replay_buffer['action'],
-            'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
-            'point_cloud': self.replay_buffer['point_cloud'],
+            'action': self.replay_buffer['actions'],
+            'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
+            'point_cloud': self.replay_buffer['pointcloud'],
         }
         # data = {
         #     'action': self.replay_buffer['action'],
@@ -123,15 +141,14 @@ class LiberoDataset(BaseDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        agent_pos = sample['state'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
-        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
-
+        agent_pos = sample['robot_states'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
+        point_cloud = sample['pointcloud'][:,].astype(np.float32) # (T, 1024, 6)
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 6
                 'agent_pos': agent_pos, # T, D_pos
             },
-            'action': sample['action'].astype(np.float32) # T, D_action
+            'action': sample['actions'].astype(np.float32) # T, D_action
         }
         return data
     
@@ -143,7 +160,7 @@ class LiberoDataset(BaseDataset):
         # data['obs']['agent_pos'] (16,9)
         # data['action'] (16,7) 
         # do a transform to the maniskill pos
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 

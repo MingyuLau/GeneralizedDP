@@ -7,18 +7,7 @@ import numcodecs
 import numpy as np
 from functools import cached_property
 from termcolor import cprint
-import torch
-import pytorch3d.ops as torch3d_ops
-def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
-    # fast point cloud sampling using torch3d
-    points = torch.from_numpy(points).unsqueeze(0).cuda()
-    num_points = torch.tensor([num_points]).cuda()
-    # remember to only use coord to sample
-    _, sampled_indices = torch3d_ops.sample_farthest_points(points=points[...,:3], K=num_points)
-    points = points.squeeze(0).cpu().numpy()
-    points = points[sampled_indices.squeeze(0).cpu().numpy()]
-    return points, sampled_indices.squeeze(0).cpu().numpy()  # Return numpy array of indices
-
+from pathlib import Path
 
 def check_chunks_compatible(chunks: tuple, shape: tuple):
     assert len(shape) == len(chunks)
@@ -110,7 +99,6 @@ class ReplayBuffer:
         assert('episode_ends' in root['meta'])
         for key, value in root['data'].items():
             assert(value.shape[0] == root['meta']['episode_ends'][-1])
-            
         self.root = root
     
     # ============= create constructors ===============
@@ -171,43 +159,18 @@ class ReplayBuffer:
         if store is None:
             # numpy backend
             meta = dict()
-            if "meta" in src_root.keys():
-                for key, value in src_root['meta'].items():
-                    if len(value.shape) == 0:
-                        meta[key] = np.array(value)
-                    else:
-                        meta[key] = value[:]
-            else:
-                meta['episode_ends']=0
+            for key, value in src_root['meta'].items():
+                if len(value.shape) == 0:
+                    meta[key] = np.array(value)
+                else:
+                    meta[key] = value[:]
 
             if keys is None:
                 keys = src_root['data'].keys()
             data = dict()
-            if any("demo" in key for key in src_root['data'].keys()):
-                
-                demo_keys = [key for key in src_root['data'].keys() if 'demo' in key]
-                for key in keys: 
-                    ends=[]
-                    array_list = []
-                    end=0
-                    for demo_key in demo_keys:
-                        if key in src_root['data'][demo_key].keys():
-                            arr = src_root['data'][demo_key][key][:]
-                        elif key in src_root['data'][demo_key]['obs'].keys():
-                            arr = src_root['data'][demo_key]['obs'][key][:]
-                        array_list.append(arr)
-                        end+=np.array(arr).shape[0]
-                        ends.append(end)  
-                    if array_list:
-                        merged_array = np.concatenate(array_list, axis=0)
-                        data[key] = merged_array    
-                        
-                meta['episode_ends']=ends
-            else:
-                for key in keys:
-                    arr = src_root['data'][key]
-                    data[key] = arr[:]
-            
+            for key in keys:
+                arr = src_root['data'][key]
+                data[key] = arr[:]
             root = {
                 'meta': meta,
                 'data': data
@@ -263,6 +226,22 @@ class ReplayBuffer:
         return cls.copy_from_store(src_store=group.store, store=store, 
             keys=keys, chunks=chunks, compressors=compressors, 
             if_exists=if_exists, **kwargs)
+
+    @classmethod
+    def copy_from_libero_demos(cls, demo_dirs, keys=None):
+        if keys is None:
+            keys = [f.stem for f in Path(demo_dirs[0]).glob('*.npy')]
+        episodes = []
+        for demo_dir in demo_dirs:
+            episode = {}
+            for key in keys:
+                arr = np.load(str(Path(demo_dir) / f"{key}.npy"))
+                episode[key] = arr
+            episodes.append(episode)
+        buffer = cls.create_empty_numpy()
+        for ep in episodes:
+            buffer.add_episode(ep)
+        return buffer
 
     # ============= save methods ===============
     def save_to_store(self, store, 
@@ -627,3 +606,5 @@ class ReplayBuffer:
                 compressor = self.resolve_compressor(value)
                 if compressor != arr.compressor:
                     rechunk_recompress_array(self.data, key, compressor=compressor)
+
+

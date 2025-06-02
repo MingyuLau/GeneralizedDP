@@ -115,6 +115,14 @@ class CalvinDataset(BaseDataset):
         val_set.train_mask = ~self.train_mask
         return val_set
 
+    def get_data(self, mode='limits', **kwargs):
+        data = {
+            'action': self.replay_buffer['action'],
+            'agent_pos': self.replay_buffer['states'][..., -18:-9],  # 只取前9维 (qpos)
+            'point_cloud': self.replay_buffer['pointclouds'],
+        }
+        return data
+
     def get_normalizer(self, mode='limits', **kwargs):
         # data = {
         #     'action': np.concatenate([buf['action'] for buf in self.replay_buffers]),

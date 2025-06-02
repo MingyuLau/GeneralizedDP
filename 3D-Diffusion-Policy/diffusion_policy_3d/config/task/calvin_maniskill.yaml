@@ -26,7 +26,7 @@ dataset:
       pad_after: ${eval:'${n_action_steps}-1'}
       seed: 42
       val_ratio: 0.1
-      max_train_episodes: null
+      max_train_episodes: 1000
       
     - _target_: diffusion_policy_3d.dataset.maniskill_dataset.ManiskillDataset  # 改为ManiSkill数据集
       zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill
@@ -35,5 +35,24 @@ dataset:
       pad_after: ${eval:'${n_action_steps}-1'}
       seed: 42
       val_ratio: 0.1
-      max_train_episodes: null
+      max_train_episodes: 1000
+
+    # - _target_: diffusion_policy_3d.dataset.uni_dataset.UniDataset
+    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/2_mix
+    #   horizon: ${horizon}
+    #   pad_before: ${eval:'${n_obs_steps}-1'}
+    #   pad_after: ${eval:'${n_action_steps}-1'}
+    #   seed: 42
+    #   val_ratio: 0.02
+    #   max_train_episodes: 10
+
+    # - _target_: diffusion_policy_3d.dataset.uni_dataset.UniDataset
+    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/1_mix
+    #   horizon: ${horizon}
+    #   pad_before: ${eval:'${n_obs_steps}-1'}
+    #   pad_after: ${eval:'${n_action_steps}-1'}
+    #   seed: 42
+    #   val_ratio: 0.02
+    #   max_train_episodes: 10 
+
       # 公共参数

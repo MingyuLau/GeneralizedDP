@@ -1,3 +1,4 @@
+import imp
 from typing import Sequence, Optional
 import torch
 from torch import nn
@@ -60,6 +61,7 @@ class LowdimMaskGenerator(ModuleAttrMixin):
     def forward(self, shape, seed=None):
         device = self.device
         B, T, D = shape
+        # import pdb; pdb.set_trace()
         assert D == (self.action_dim + self.obs_dim)
 
         # create all tensors on this device

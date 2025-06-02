@@ -140,6 +140,14 @@ class ManiskillDataset(BaseDataset):
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer
+    
+    def get_data(self, mode='limits', **kwargs):
+        data = {
+            'action': self.replay_buffer['action'],
+            'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
+            'point_cloud': self.replay_buffer['point_cloud'],
+        }
+        return data
 
     def __len__(self) -> int:
         return len(self.sampler)

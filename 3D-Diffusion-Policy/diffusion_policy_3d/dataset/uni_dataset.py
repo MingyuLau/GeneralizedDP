@@ -100,7 +100,14 @@ class UniDataset(BaseDataset):
                 merged_buffer.add_episode(episode_data)
         # import pdb; pdb.set_trace()
         return merged_buffer
-
+    
+    def get_data(self, mode='limits', **kwargs):
+        data = {
+            'action': self.replay_buffer['action'],
+            'agent_pos': self.replay_buffer['state'][...,:],
+            'point_cloud': self.replay_buffer['point_cloud'],
+        }
+        return data
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -157,7 +164,7 @@ class UniDataset(BaseDataset):
         data = self._sample_to_data(sample)  # 这里只有两个key obs(point_cloud, agent_pos)和action (16,7)
         # (16,1024,6)  (16,7)  (16,7)
         # (16,1024,6)  (16,9)  (16,4)
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 

@@ -27,6 +27,7 @@ class ManiskillDataset(BaseDataset):
         self.zarr_path = zarr_path
         # zarr_paths = self.zarr_path
         
+        
         zarr_paths = self.get_subdirs_with_path(self.zarr_path)
         # import pdb/t_trace()
 

@@ -98,7 +98,7 @@ class TrainDP3Workspace:
 
         # configure dataset
         dataset: BaseDataset
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         dataset = hydra.utils.instantiate(cfg.task.dataset)
 
         assert isinstance(dataset, BaseDataset) or (

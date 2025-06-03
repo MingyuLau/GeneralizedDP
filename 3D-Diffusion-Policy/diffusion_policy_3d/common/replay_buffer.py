@@ -108,6 +108,7 @@ class ReplayBuffer:
         assert('data' in root)
         assert('meta' in root)
         assert('episode_ends' in root['meta'])
+        import pdb; pdb.set_trace()
         for key, value in root['data'].items():
             assert(value.shape[0] == root['meta']['episode_ends'][-1])
             

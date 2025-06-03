@@ -160,7 +160,7 @@ class LiberoDataset(BaseDataset):
         # data['obs']['agent_pos'] (16,9)
         # data['action'] (16,7) 
         # do a transform to the maniskill pos
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 

@@ -18,7 +18,7 @@ env_runner: null
 
 dataset:
   _target_: diffusion_policy_3d.dataset.libero_dataset.LiberoDataset
-  zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero
+  zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/3_mix
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

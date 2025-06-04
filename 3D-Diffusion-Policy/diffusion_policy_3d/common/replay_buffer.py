@@ -1,3 +1,4 @@
+import imp
 from typing import Union, Dict, Optional
 import os
 import math
@@ -108,7 +109,7 @@ class ReplayBuffer:
         assert('data' in root)
         assert('meta' in root)
         assert('episode_ends' in root['meta'])
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace() 
         for key, value in root['data'].items():
             assert(value.shape[0] == root['meta']['episode_ends'][-1])
             
@@ -169,6 +170,7 @@ class ReplayBuffer:
         """
         src_root = zarr.group(src_store)
         root = None
+        # import pdb; pdb.set_trace()
         if store is None:
             # numpy backend
             meta = dict()

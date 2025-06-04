@@ -125,7 +125,10 @@ class LiberoDataset(BaseDataset):
         data = {
             'action': self.replay_buffer['actions'],
             'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
-            'point_cloud': self.replay_buffer['pointcloud'],
+            'point_cloud': np.concatenate([
+                self.replay_buffer['pointcloud'],
+                self.replay_buffer['pointcloud']
+            ], axis=-1)
         }
         # data = {
         #     'action': self.replay_buffer['action'],
@@ -136,16 +139,29 @@ class LiberoDataset(BaseDataset):
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer
-
+    
+    def get_data(self, mode='limits', **kwargs):
+        data = {
+            'action': self.replay_buffer['actions'],
+            'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
+            'point_cloud': np.concatenate([
+                self.replay_buffer['pointcloud'],
+                self.replay_buffer['pointcloud']
+            ], axis=-1)
+        }
+        # import pdb; pdb.set_trace()
+        return data
+    
     def __len__(self) -> int:
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
         agent_pos = sample['robot_states'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
         point_cloud = sample['pointcloud'][:,].astype(np.float32) # (T, 1024, 6)
+        # import pdb; pdb.set_trace() 
         data = {
             'obs': {
-                'point_cloud': point_cloud, # T, 1024, 6
+                'point_cloud': np.concatenate([point_cloud, point_cloud], axis=-1), # T, 1024, 6
                 'agent_pos': agent_pos, # T, D_pos
             },
             'action': sample['actions'].astype(np.float32) # T, D_action

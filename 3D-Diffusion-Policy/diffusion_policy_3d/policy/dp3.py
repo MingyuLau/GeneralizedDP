@@ -269,9 +269,10 @@ class DP3(BasePolicy):
         horizon = nactions.shape[1]
 ############
         sparse_stride = 4
-        sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-        nobs['sparse_actions'] = sparse_actions
-
+        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+        sparse_actions = nactions # [bs, 16, 7]
+        # nobs['sparse_actions'] = sparse_actions
+        # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
 ###########
         # handle different ways of passing observation
@@ -279,6 +280,7 @@ class DP3(BasePolicy):
         global_cond = None
         trajectory = nactions
         cond_data = trajectory # [128,16,7]
+        
         
         
         

@@ -217,10 +217,13 @@ class DP3Encoder(nn.Module):
         self.point_cloud_key = 'point_cloud'
         self.rgb_image_key = 'image'
         self.n_output_channels = out_channel
-        
+        # self.action_key = 'sparse_actions'
+
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
         self.point_cloud_shape = observation_space[self.point_cloud_key]
         self.state_shape = observation_space[self.state_key]
+        # import pdb; pdb.set_trace()
+        # self.action_shape = observation_space[self.action_key]
         if self.use_imagined_robot:
             self.imagination_shape = observation_space[self.imagination_key]
         else:
@@ -259,8 +262,10 @@ class DP3Encoder(nn.Module):
 
         cprint(f"[DP3Encoder] output dim: {self.n_output_channels}", "red")
 
+        # self.action_mlp = nn.Sequential(*create_mlp(self.action_shape[0], output_dim, net_arch, state_mlp_activation_fn))
 
     def forward(self, observations: Dict) -> torch.Tensor:
+        import pdb; pdb.set_trace() 
         points = observations[self.point_cloud_key]
         assert len(points.shape) == 3, cprint(f"point cloud shape: {points.shape}, length should be 3", "red")
         if self.use_imagined_robot:
@@ -273,7 +278,16 @@ class DP3Encoder(nn.Module):
             
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
-        final_feat = torch.cat([pn_feat, state_feat], dim=-1)
+
+
+        #####action fearture######
+        if self.action_key in observations.keys():
+            action = observations[self.action_key]
+            action_feat = self.action_mlp(action)  # B * 64
+            final_feat = torch.cat([pn_feat, state_feat, action_feat], dim=-1)
+        else:
+            final_feat = torch.cat([pn_feat, state_feat], dim=-1)
+
         return final_feat
 
 

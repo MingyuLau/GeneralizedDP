@@ -110,7 +110,7 @@ class TrainDP3Workspace:
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         
         datas = [d.get_data() for d in dataset.datasets]
-
+        # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
         normalizer = LinearNormalizer()
         combined_data = {

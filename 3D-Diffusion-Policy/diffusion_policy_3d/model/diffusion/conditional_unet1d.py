@@ -67,8 +67,10 @@ class ConditionalResidualBlock1D(nn.Module):
         self.condition_type = condition_type
 
         cond_channels = out_channels
+        # import pdb; pdb.set_trace()
         if condition_type == 'film': # FiLM modulation https://arxiv.org/abs/1709.07871
             # predicts per-channel scale and bias
+            # import pdb; pdb.set_trace()
             cond_channels = out_channels * 2
             self.cond_encoder = nn.Sequential(
                 nn.Mish(),
@@ -114,6 +116,7 @@ class ConditionalResidualBlock1D(nn.Module):
         out = self.blocks[0](x)  
         if cond is not None:      
             if self.condition_type == 'film':
+                # import pdb; pdb.set_trace()
                 embed = self.cond_encoder(cond)
                 embed = embed.reshape(embed.shape[0], 2, self.out_channels, 1)
                 scale = embed[:, 0, ...]
@@ -180,7 +183,7 @@ class ConditionalUnet1D(nn.Module):
         cond_dim = dsed
         if global_cond_dim is not None:
             cond_dim += global_cond_dim
-
+        # import pdb; pdb.set_trace()
         in_out = list(zip(all_dims[:-1], all_dims[1:]))
 
         local_cond_encoder = None
@@ -215,6 +218,7 @@ class ConditionalUnet1D(nn.Module):
         ])
 
         down_modules = nn.ModuleList([])
+        # import pdb; pdb.set_trace()
         for ind, (dim_in, dim_out) in enumerate(in_out):
             is_last = ind >= (len(in_out) - 1)
             down_modules.append(nn.ModuleList([
@@ -304,6 +308,7 @@ class ConditionalUnet1D(nn.Module):
         h = []
         for idx, (resnet, resnet2, downsample) in enumerate(self.down_modules):
             if self.use_down_condition:
+                # import pdb; pdb.set_trace()
                 x = resnet(x, global_feature)
                 if idx == 0 and len(h_local) > 0:
                     x = x + h_local[0]

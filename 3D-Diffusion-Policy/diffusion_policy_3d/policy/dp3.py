@@ -78,6 +78,7 @@ class DP3(BasePolicy):
                 global_cond_dim = obs_feature_dim
             else:
                 global_cond_dim = obs_feature_dim * n_obs_steps
+                # global_cond_dim = obs_feature_dim * 3
         
 
         self.use_pc_color = use_pc_color
@@ -86,7 +87,7 @@ class DP3(BasePolicy):
         cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
 
 
-
+        # import pdb; pdb.set_trace()
         model = ConditionalUnet1D(
             input_dim=input_dim,
             local_cond_dim=None,
@@ -288,10 +289,11 @@ class DP3(BasePolicy):
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [256,1024,3] [256,7]
-            nobs_features = self.obs_encoder(this_nobs) # [256,128]
-
+            nobs_features = self.obs_encoder(this_nobs) # [128,64*3]
+            # import pdb; pdb.set_trace()
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
+                
                 global_cond = nobs_features.reshape(batch_size, self.n_obs_steps, -1)
             else:
                 # reshape back to B, Do

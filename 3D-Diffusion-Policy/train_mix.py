@@ -302,7 +302,10 @@ class TrainDP3Workspace:
                 with torch.no_grad():
                     # sample trajectory from training set, and evaluate difference
                     batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-                    obs_dict = batch['obs']
+    
+                    obs_dict = dict()
+                    obs_dict['obs'] = batch['obs']
+                    obs_dict['actions'] = batch['action']
                     gt_action = batch['action']
                     
                     result = policy.predict_action(obs_dict)

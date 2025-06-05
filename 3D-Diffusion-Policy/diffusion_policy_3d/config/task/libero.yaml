@@ -11,6 +11,9 @@ shape_meta: &shape_meta
     agent_pos:
       shape: [9]
       type: low_dimx
+    sparse_actions:
+      shape: [7]
+      type: low_dimx
   action:
     shape: [7]
 
@@ -24,4 +27,4 @@ dataset:
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
   val_ratio: 0.02
-  max_train_episodes: 500
+  max_train_episodes: 90

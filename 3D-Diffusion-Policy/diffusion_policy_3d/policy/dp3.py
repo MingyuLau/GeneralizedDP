@@ -1,3 +1,4 @@
+import imp
 from typing import Dict
 import math
 import torch
@@ -70,15 +71,17 @@ class DP3(BasePolicy):
 
         # create diffusion model
         obs_feature_dim = obs_encoder.output_shape()
+        # import pdb; pdb.set_trace()
         input_dim = action_dim + obs_feature_dim
         global_cond_dim = None
+        # import pdb; pdb.set_trace()
         if obs_as_global_cond:
             input_dim = action_dim
             if "cross_attention" in self.condition_type:
                 global_cond_dim = obs_feature_dim
             else:
-                # global_cond_dim = obs_feature_dim * n_obs_steps
-                global_cond_dim = obs_feature_dim * 3
+                global_cond_dim = obs_feature_dim * n_obs_steps
+                # global_cond_dim = obs_feature_dim * 3
         
 
         self.use_pc_color = use_pc_color
@@ -181,13 +184,21 @@ class DP3(BasePolicy):
         result: must include "action" key
         """
         # normalize input
-        nobs = self.normalizer.normalize(obs_dict)
+        nobs = self.normalizer.normalize(obs_dict['obs'])
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         this_n_point_cloud = nobs['point_cloud']
-        
-        
+
+        nactions = self.normalizer['action'].normalize(obs_dict['actions'])
+        batch_size = nactions.shape[0]
+        horizon = nactions.shape[1]
+############
+        sparse_stride = 4
+        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+        sparse_actions = nactions # [bs, 16, 7]
+        nobs['sparse_actions'] = sparse_actions
+
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
         T = self.horizon
@@ -202,6 +213,7 @@ class DP3(BasePolicy):
         # handle different ways of passing observation
         local_cond = None
         global_cond = None
+        # import pdb; pdb.set_trace()
         if self.obs_as_global_cond:
             # condition through global feature
             this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
@@ -260,19 +272,19 @@ class DP3(BasePolicy):
     def compute_loss(self, batch):
         # normalize input
         # import pdb; pdb.set_trace()
-        nobs = self.normalizer.normalize(batch['obs'])
+        nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
         nactions = self.normalizer['action'].normalize(batch['action'])
         
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         
-        batch_size = nactions.shape[0]
-        horizon = nactions.shape[1]
-############
-        sparse_stride = 4
-        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-        sparse_actions = nactions # [bs, 16, 7]
-        nobs['sparse_actions'] = sparse_actions
+            batch_size = nactions.shape[0]
+            horizon = nactions.shape[1]
+    ############
+            sparse_stride = 4
+            # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+            sparse_actions = nactions # [bs, 16, 7]
+            nobs['sparse_actions'] = sparse_actions
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
 ###########
@@ -288,8 +300,8 @@ class DP3(BasePolicy):
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
-                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [256,1024,3] [256,7]
-            nobs_features = self.obs_encoder(this_nobs) # [128,64*3]
+                lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [bs*2,1024,3] [bs*2,7]
+            nobs_features = self.obs_encoder(this_nobs) # [bs*2,64*3]
             # import pdb; pdb.set_trace()
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
@@ -297,7 +309,7 @@ class DP3(BasePolicy):
                 global_cond = nobs_features.reshape(batch_size, self.n_obs_steps, -1)
             else:
                 # reshape back to B, Do
-                global_cond = nobs_features.reshape(batch_size, -1) # [128,256]
+                global_cond = nobs_features.reshape(batch_size, -1) # [bs,384]
             # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
             this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
             this_n_point_cloud = this_n_point_cloud[..., :3]
@@ -344,6 +356,7 @@ class DP3(BasePolicy):
                         timestep=timesteps, 
                             local_cond=local_cond, 
                             global_cond=global_cond)
+        # global_cond之前是[bs,256],现在是[bs,384]
 
 
         pred_type = self.noise_scheduler.config.prediction_type 

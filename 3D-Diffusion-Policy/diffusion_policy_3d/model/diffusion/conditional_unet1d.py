@@ -89,6 +89,7 @@ class ConditionalResidualBlock1D(nn.Module):
             cond_channels = out_channels * 2
             self.cond_encoder = CrossAttention(in_channels, cond_dim, cond_channels)
         elif condition_type == 'mlp_film':
+           
             cond_channels = out_channels * 2
             self.cond_encoder = nn.Sequential(
                 nn.Mish(),

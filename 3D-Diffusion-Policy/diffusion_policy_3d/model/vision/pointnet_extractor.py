@@ -257,7 +257,11 @@ class DP3Encoder(nn.Module):
             net_arch = state_mlp_size[:-1]
         output_dim = state_mlp_size[-1]
 
+        # import pdb; pdb.set_trace()
+
         self.n_output_channels  += output_dim
+        self.n_output_channels  += output_dim
+        # 现在self.n_output_channels = 192
         self.state_mlp = nn.Sequential(*create_mlp(self.state_shape[0], output_dim, net_arch, state_mlp_activation_fn))
 
         cprint(f"[DP3Encoder] output dim: {self.n_output_channels}", "red")

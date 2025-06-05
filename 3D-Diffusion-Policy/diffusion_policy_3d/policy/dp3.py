@@ -77,8 +77,8 @@ class DP3(BasePolicy):
             if "cross_attention" in self.condition_type:
                 global_cond_dim = obs_feature_dim
             else:
-                global_cond_dim = obs_feature_dim * n_obs_steps
-                # global_cond_dim = obs_feature_dim * 3
+                # global_cond_dim = obs_feature_dim * n_obs_steps
+                global_cond_dim = obs_feature_dim * 3
         
 
         self.use_pc_color = use_pc_color
@@ -272,7 +272,7 @@ class DP3(BasePolicy):
         sparse_stride = 4
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
         sparse_actions = nactions # [bs, 16, 7]
-        # nobs['sparse_actions'] = sparse_actions
+        nobs['sparse_actions'] = sparse_actions
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
 ###########

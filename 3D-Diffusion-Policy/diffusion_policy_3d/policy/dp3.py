@@ -10,7 +10,8 @@ from termcolor import cprint
 import copy
 import time
 import pytorch3d.ops as torch3d_ops
-
+import numpy as np
+from plyfile import PlyElement, PlyData
 from diffusion_policy_3d.model.common.normalizer import LinearNormalizer
 from diffusion_policy_3d.policy.base_policy import BasePolicy
 from diffusion_policy_3d.model.diffusion.conditional_unet1d import ConditionalUnet1D
@@ -269,12 +270,44 @@ class DP3(BasePolicy):
     def set_normalizer(self, normalizer: LinearNormalizer):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
+    def save_point_cloud_to_ply(self, point_cloud, file_path):
+    # 确保颜色值在0-255范围内
+        colors = point_cloud[:, 3:6].astype(np.uint8)
+        # 提取坐标
+        vertices = point_cloud[:, 0:3]
+        
+        # 创建结构化数组
+        vertex_data = np.zeros(len(vertices), dtype=[
+            ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+            ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')
+        ])
+        
+        vertex_data['x'] = vertices[:, 0]
+        vertex_data['y'] = vertices[:, 1]
+        vertex_data['z'] = vertices[:, 2]
+        vertex_data['red'] = colors[:, 0]
+        vertex_data['green'] = colors[:, 1]
+        vertex_data['blue'] = colors[:, 2]
+        
+        # 创建PLY元素
+        el = PlyElement.describe(vertex_data, 'vertex')
+        # 创建并保存PLY文件
+        PlyData([el], text=False).write(file_path)
+        
+        print(f"点云已保存到 {file_path}")
+
+    # 使用示例
+    # point_cloud = np.random.rand(1024, 6)  # 示例数据
+    # point_cloud[:, 3:6] *= 255  # 将颜色值缩放到0-255
+    # save_point_cloud_to_ply(point_cloud, 'point_cloud.ply')
     def compute_loss(self, batch):
         # normalize input
         # import pdb; pdb.set_trace()
         nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
         nactions = self.normalizer['action'].normalize(batch['action'])
-        
+        import pdb; pdb.set_trace()
+        point = nobs['point_cloud'][0][0].cpu().numpy()
+        self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         

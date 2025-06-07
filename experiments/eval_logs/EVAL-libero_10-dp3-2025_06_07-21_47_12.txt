@@ -1,0 +1,51 @@
+Task suite: libero_10
+Tested Ckpt': finetune-libero 
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 1...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 1
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 2...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 2
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 3...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 3
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 4...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 4
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 5...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 5
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 6...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 6
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 7...
+Caught exception: get_action() missing 1 required positional argument: 'task_label'
+Success: False
+# episodes completed so far: 7
+# successes: 0 (0.0%)

@@ -1,0 +1,16 @@
+Task suite: libero_10
+Tested Ckpt': finetune-libero 
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 1...
+Caught exception: too many indices for tensor of dimension 1
+Success: False
+# episodes completed so far: 1
+# successes: 0 (0.0%)
+
+Task: put both the alphabet soup and the tomato sauce in the basket
+Starting episode 2...
+Caught exception: 
+Success: False
+# episodes completed so far: 2
+# successes: 0 (0.0%)

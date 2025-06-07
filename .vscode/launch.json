@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "slurm_debug",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "SH-IDC1-10-140-0-139",
+                "port": 10099
+            },
+            "justMyCode": true
+        }
+    ]
+}

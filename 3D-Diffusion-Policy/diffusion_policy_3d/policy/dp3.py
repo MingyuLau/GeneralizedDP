@@ -217,6 +217,7 @@ class DP3(BasePolicy):
         # import pdb; pdb.set_trace()
         if self.obs_as_global_cond:
             # condition through global feature
+            # import pdb; pdb.set_trace()
             this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
             if "cross_attention" in self.condition_type:
@@ -305,9 +306,9 @@ class DP3(BasePolicy):
         # import pdb; pdb.set_trace()
         nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
         nactions = self.normalizer['action'].normalize(batch['action'])
-        import pdb; pdb.set_trace()
-        point = nobs['point_cloud'][0][0].cpu().numpy()
-        self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
+        # import pdb; pdb.set_trace()
+        # point = nobs['point_cloud'][0][0].cpu().numpy()
+        # self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         

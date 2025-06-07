@@ -31,7 +31,6 @@ from diffusion_policy_3d.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy_3d.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy_3d.model.diffusion.ema_model import EMAModel
 from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
-from diffusion_policy_3d.model.common.normalizer import LinearNormalizer, SingleFieldLinearNormalizer
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
@@ -91,7 +90,6 @@ class TrainDP3Workspace:
         RUN_VALIDATION = False # reduce time cost
         
         # resume training
-        cfg.training.resume = False
         if cfg.training.resume:
             lastest_ckpt_path = self.get_checkpoint_path()
             if lastest_ckpt_path.is_file():
@@ -101,28 +99,18 @@ class TrainDP3Workspace:
         # configure dataset
         dataset: BaseDataset
         # import pdb; pdb.set_trace()
-        dataset = hydra.utils.instantiate(cfg.task.dataset) 
+        dataset = hydra.utils.instantiate(cfg.task.dataset)
 
         assert isinstance(dataset, BaseDataset) or (
             isinstance(dataset, ConcatDataset) and 
             all(isinstance(d, BaseDataset) for d in dataset.datasets)
         ), f"dataset must be BaseDataset or ConcatDataset of BaseDataset, got {type(dataset)}"
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
-        
-        datas = [d.get_data() for d in dataset.datasets]
-        # import pdb; pdb.set_trace()
-        # import pdb; pdb.set_trace()
-        normalizer = LinearNormalizer()
-        combined_data = {
-            key: np.concatenate([d[key] for d in datas], axis=0)
-            for key in datas[0].keys()  # 使用第一个字典的键作为参考
-        }
-
-        normalizer.fit(data=combined_data, last_n_dims=1, mode='limits')
+        normalizer = dataset.get_normalizer()
 
         # configure validation dataset
-        # val_dataset = dataset.get_validation_dataset()
-        # val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+        val_dataset = dataset.get_validation_dataset()
+        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
 
         self.model.set_normalizer(normalizer)
         if cfg.training.use_ema:
@@ -263,54 +251,49 @@ class TrainDP3Workspace:
             policy = self.model
             if cfg.training.use_ema:
                 policy = self.ema_model
-            # policy.eval()
+            policy.eval()
 
-            # # run rollout
-            # if (self.epoch % cfg.training.rollout_every) == 0 and RUN_ROLLOUT and env_runner is not None:
-            #     t3 = time.time()
-            #     # runner_log = env_runner.run(policy, dataset=dataset)
-            #     runner_log = env_runner.run(policy)
-            #     t4 = time.time()
-            #     # print(f"rollout time: {t4-t3:.3f}")
-            #     # log all
-            #     step_log.update(runner_log)
+            # run rollout
+            if (self.epoch % cfg.training.rollout_every) == 0 and RUN_ROLLOUT and env_runner is not None:
+                t3 = time.time()
+                # runner_log = env_runner.run(policy, dataset=dataset)
+                runner_log = env_runner.run(policy)
+                t4 = time.time()
+                # print(f"rollout time: {t4-t3:.3f}")
+                # log all
+                step_log.update(runner_log)
 
             
             
             # run validation
             # import pdb; pdb.set_trace()
-            # if (self.epoch % cfg.training.val_every) == 0 and RUN_VALIDATION:
-            #     with torch.no_grad():
-            #         val_losses = list()
-            #         with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
-            #                 leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
-            #             for batch_idx, batch in enumerate(tepoch):
-            #                 import pdb; pdb.set_trace()
-            #                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
-            #                 loss, loss_dict = self.model.compute_loss(batch)
-            #                 val_losses.append(loss)
-            #                 if (cfg.training.max_val_steps is not None) \
-            #                     and batch_idx >= (cfg.training.max_val_steps-1):
-            #                     break
-            #         if len(val_losses) > 0:
-            #             val_loss = torch.mean(torch.tensor(val_losses)).item()
-            #             # log epoch average validation loss
-            #             step_log['val_loss'] = val_loss
+            if (self.epoch % cfg.training.val_every) == 0 and RUN_VALIDATION:
+                with torch.no_grad():
+                    val_losses = list()
+                    with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
+                            leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                        for batch_idx, batch in enumerate(tepoch):
+                            import pdb; pdb.set_trace()
+                            batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                            loss, loss_dict = self.model.compute_loss(batch)
+                            val_losses.append(loss)
+                            if (cfg.training.max_val_steps is not None) \
+                                and batch_idx >= (cfg.training.max_val_steps-1):
+                                break
+                    if len(val_losses) > 0:
+                        val_loss = torch.mean(torch.tensor(val_losses)).item()
+                        # log epoch average validation loss
+                        step_log['val_loss'] = val_loss
 
             # run diffusion sampling on a training batch
-            # import pdb; pdb.set_trace()
             if (self.epoch % cfg.training.sample_every) == 0:
                 with torch.no_grad():
                     # sample trajectory from training set, and evaluate difference
                     batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-    
-                    obs_dict = dict()
-                    obs_dict['obs'] = batch['obs']
-                    obs_dict['actions'] = batch['action']
+                    obs_dict = batch['obs']
                     gt_action = batch['action']
-                    # import pdb; pdb.set_trace()
+                    
                     result = policy.predict_action(obs_dict)
-                    import pdb; pdb.set_trace()
                     pred_action = result['action_pred']
                     mse = torch.nn.functional.mse_loss(pred_action, gt_action)
                     step_log['train_action_mse_error'] = mse.item()
@@ -524,7 +507,7 @@ class TrainDP3Workspace:
 
 def main(cfg):
     # import pdb; pdb.set_trace()
-
+    # import pdb; pdb.set_trace()
     workspace = TrainDP3Workspace(cfg)
     workspace.run()
 

@@ -157,7 +157,53 @@ from plyfile import PlyData, PlyElement
 
 # 假设你的点云数据是一个[1024, 6]的numpy数组，命名为point_cloud
 # point_cloud[:, 0:3]是xyz坐标，point_cloud[:, 3:6]是rgb颜色值
-
+def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
+    """
+    使用 farthest point sampling 对点云进行降采样（纯 PyTorch 实现）
+    :param points: 输入的点云数据 (numpy 数组), 形状 [B, H, W, C]
+    :param num_points: 降采样后的点数
+    :return: 降采样后的点云列表和采样点索引列表
+    """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    points_tensor = torch.from_numpy(points).float().to(device)
+    batch_size = points_tensor.shape[0]
+    
+    downsampled_points = []
+    sampled_indices_list = []
+    
+    
+    cur_points = points_tensor[:, :3]
+    total_points = cur_points.shape[0]
+    
+    if num_points > total_points:
+        raise ValueError(f"num_points ({num_points}) > total points ({total_points})")
+    
+    # 初始化采样索引和距离数组
+    indices = torch.zeros(num_points, dtype=torch.long, device=device)
+    distances = torch.full((total_points,), float('inf'), device=device)
+    
+    # 随机选择第一个点
+    farthest_idx = torch.randint(0, total_points, (1,), device=device)
+    indices[0] = farthest_idx
+    
+    # 迭代选择剩余点
+    for j in range(1, num_points):
+        # 计算最新采样点到所有点的距离
+        new_point = cur_points[indices[j-1]]
+        dist_to_new = torch.norm(cur_points - new_point, dim=1)
+        
+        # 更新最小距离
+        distances = torch.min(distances, dist_to_new)
+        
+        # 选择距离最大的点作为下一个采样点
+        farthest_idx = torch.argmax(distances)
+        indices[j] = farthest_idx
+    
+    # 收集采样点
+    sampled_points = cur_points[indices]
+    downsampled_points.append(sampled_points.cpu().numpy())
+    sampled_indices_list.append(indices.cpu().numpy())
+    return downsampled_points, sampled_indices_list
 def save_point_cloud_to_ply(point_cloud, file_path):
     # 确保颜色值在0-255范围内
     colors = point_cloud[:, 3:6].astype(np.uint8)
@@ -304,9 +350,14 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     img = get_libero_image(obs, resize_size)
                     pcd = get_pcd_from_obs(obs)
                     # [10240,3] -> [1024, 3]
-                    pcd = pcd[:1024, :]
-                    # import pdb; pdb.set_trace()
+                    
+                    
+                    
+                    
                     pcd = normalize_point_cloud(pcd)
+                    pcd, _ = downsample_with_fps(pcd, 1024)
+                    # [1024, 3] -> [1024, 6]
+                    pcd = np.hstack((pcd[0], pcd[0]))
                     # Save preprocessed image for replay video
                     replay_images.append(img)
                     replay_pcds.append(pcd)

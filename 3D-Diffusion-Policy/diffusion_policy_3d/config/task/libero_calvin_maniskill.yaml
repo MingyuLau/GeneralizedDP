@@ -12,7 +12,7 @@ shape_meta: &shape_meta
       shape: [9]
       type: low_dimx
     sparse_actions:
-      shape: [7]
+      shape: [3]
       type: low_dimx
   action:
     shape: [7]
@@ -22,26 +22,26 @@ env_runner: null
 dataset:
   _target_: torch.utils.data.ConcatDataset
   datasets:
-    # - _target_: diffusion_policy_3d.dataset.calvin_dataset.CalvinDataset
-    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_calvin
-    #   horizon: ${horizon}
-    #   pad_before: ${eval:'${n_obs_steps}-1'}
-    #   pad_after: ${eval:'${n_action_steps}-1'}
-    #   seed: 42
-    #   val_ratio: 0.1
-    #   max_train_episodes: 9000
+    - _target_: diffusion_policy_3d.dataset.calvin_dataset.CalvinDataset
+      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_calvin
+      horizon: ${horizon}
+      pad_before: ${eval:'${n_obs_steps}-1'}
+      pad_after: ${eval:'${n_action_steps}-1'}
+      seed: 42
+      val_ratio: 0.1
+      max_train_episodes: 9000
       
-    # - _target_: diffusion_policy_3d.dataset.maniskill_dataset.ManiskillDataset  # 改为ManiSkill数据集
-    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill
-    #   horizon: ${horizon}
-    #   pad_before: ${eval:'${n_obs_steps}-1'}
-    #   pad_after: ${eval:'${n_action_steps}-1'}
-    #   seed: 42
-    #   val_ratio: 0.1
-    #   max_train_episodes: 9000
+    - _target_: diffusion_policy_3d.dataset.maniskill_dataset.ManiskillDataset  # 改为ManiSkill数据集
+      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill
+      horizon: ${horizon}
+      pad_before: ${eval:'${n_obs_steps}-1'}
+      pad_after: ${eval:'${n_action_steps}-1'}
+      seed: 42
+      val_ratio: 0.1
+      max_train_episodes: 9000
     
     - _target_: diffusion_policy_3d.dataset.libero_dataset.LiberoDataset
-      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero_test
+      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero
       horizon: ${horizon}
       pad_before: ${eval:'${n_obs_steps}-1'}
       pad_after: ${eval:'${n_action_steps}-1'}

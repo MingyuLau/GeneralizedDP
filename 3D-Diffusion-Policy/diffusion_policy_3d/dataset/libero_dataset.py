@@ -125,10 +125,11 @@ class LiberoDataset(BaseDataset):
         data = {
             'action': self.replay_buffer['actions'],
             'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
-            'point_cloud': np.concatenate([
-                self.replay_buffer['pointcloud'],
-                self.replay_buffer['pointcloud']
-            ], axis=-1)
+            # 'point_cloud': np.concatenate([
+            #     self.replay_buffer['pointcloud'],
+            #     self.replay_buffer['pointcloud']
+            # ], axis=-1)
+            'point_cloud': self.replay_buffer['pointcloud']
         }
         # data = {
         #     'action': self.replay_buffer['action'],
@@ -141,13 +142,15 @@ class LiberoDataset(BaseDataset):
         return normalizer
     
     def get_data(self, mode='limits', **kwargs):
+        # import pdb; pdb.set_trace()
         data = {
             'action': self.replay_buffer['actions'],
             'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
-            'point_cloud': np.concatenate([
-                self.replay_buffer['pointcloud'],
-                self.replay_buffer['pointcloud']
-            ], axis=-1)
+            # 'point_cloud': np.concatenate([
+            #     self.replay_buffer['pointcloud'],
+            #     self.replay_buffer['pointcloud']
+            # ], axis=-1)
+            'point_cloud': self.replay_buffer['pointcloud']
         }
         # import pdb; pdb.set_trace()
         return data
@@ -156,12 +159,14 @@ class LiberoDataset(BaseDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
+        # import pdb; pdb.set_trace()
         agent_pos = sample['robot_states'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
         point_cloud = sample['pointcloud'][:,].astype(np.float32) # (T, 1024, 6)
         # import pdb; pdb.set_trace() 
         data = {
             'obs': {
-                'point_cloud': np.concatenate([point_cloud, point_cloud], axis=-1), # T, 1024, 6
+                # 'point_cloud': np.concatenate([point_cloud, point_cloud], axis=-1), # T, 1024, 6
+                'point_cloud': point_cloud,
                 'agent_pos': agent_pos, # T, D_pos
             },
             'action': sample['actions'].astype(np.float32) # T, D_action

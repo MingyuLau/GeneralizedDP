@@ -6,7 +6,7 @@
             "type": "debugpy",
             "request": "attach",
             "connect": {
-                "host": "SH-IDC1-10-140-0-139",
+                "host": "SH-IDC1-10-140-0-191",
                 "port": 10099
             },
             "justMyCode": true

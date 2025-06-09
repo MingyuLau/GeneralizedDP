@@ -5,10 +5,62 @@ import pytorch3d.ops as torch3d_ops
 import torch
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.axes3d import Axes3D as Axes3DType
 import random
 import time
 
 # 点云降采样函数（纯PyTorch实现）
+def downsample_with_color_fps(points: np.ndarray, num_points: int = 1024):
+    """
+    使用 farthest point sampling 对点云进行降采样（纯 PyTorch 实现）
+    :param points: 输入的点云数据 (numpy 数组), 形状 [B, H, W, 6] (xyz+rgb)
+    :param num_points: 降采样后的点数
+    :return: 降采样后的点云列表和采样点索引列表
+    """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    points_tensor = torch.from_numpy(points).float().to(device)
+    batch_size = points_tensor.shape[0]
+    
+    downsampled_points = []
+    sampled_indices_list = []
+    
+    for i in range(batch_size):
+        # 提取当前批次的点云并展平 [H*W, 6]
+        cur_points_full = points_tensor[i, :, :, :].reshape(-1, 6)  # 保留完整的6通道信息
+        cur_points_xyz = cur_points_full[:, :3]  # 只用xyz来计算距离
+        total_points = cur_points_xyz.shape[0]
+        
+        if num_points > total_points:
+            raise ValueError(f"num_points ({num_points}) > total points ({total_points})")
+        
+        # 初始化采样索引和距离数组
+        indices = torch.zeros(num_points, dtype=torch.long, device=device)
+        distances = torch.full((total_points,), float('inf'), device=device)
+        
+        # 随机选择第一个点
+        farthest_idx = torch.randint(0, total_points, (1,), device=device)
+        indices[0] = farthest_idx
+        
+        # 迭代选择剩余点
+        for j in range(1, num_points):
+            # 计算最新采样点到所有点的距离（只用xyz坐标）
+            new_point = cur_points_xyz[indices[j-1]]
+            dist_to_new = torch.norm(cur_points_xyz - new_point, dim=1)
+            
+            # 更新最小距离
+            distances = torch.min(distances, dist_to_new)
+            
+            # 选择距离最大的点作为下一个采样点
+            farthest_idx = torch.argmax(distances)
+            indices[j] = farthest_idx
+        
+        # 收集采样点（保留完整的6个通道：xyz+rgb）
+        sampled_points_full = cur_points_full[indices]
+        downsampled_points.append(sampled_points_full.cpu().numpy())
+        sampled_indices_list.append(indices.cpu().numpy())
+    
+    return downsampled_points, sampled_indices_list
+
 def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
     """
     使用 farthest point sampling 对点云进行降采样（纯 PyTorch 实现）
@@ -113,7 +165,10 @@ def visualize_pointcloud_comparison(original_points, downsampled_points, save_pa
     ax1.set_title(f'原始点云 ({original_points.shape[0]}点)')
     ax1.set_xlabel('X')
     ax1.set_ylabel('Y')
-    ax1.set_zlabel('Z')
+    try:
+        ax1.set_zlabel('Z')
+    except AttributeError:
+        pass
     
     # 设置相同的坐标范围
     all_xyz = np.vstack([original_points, downsampled_points])
@@ -122,7 +177,10 @@ def visualize_pointcloud_comparison(original_points, downsampled_points, save_pa
     
     ax1.set_xlim(min_vals[0], max_vals[0])
     ax1.set_ylim(min_vals[1], max_vals[1])
-    ax1.set_zlim(min_vals[2], max_vals[2])
+    try:
+        ax1.set_zlim(min_vals[2], max_vals[2])
+    except AttributeError:
+        pass
     
     # 降采样点云可视化
     ax2 = fig.add_subplot(122, projection='3d')
@@ -131,10 +189,16 @@ def visualize_pointcloud_comparison(original_points, downsampled_points, save_pa
     ax2.set_title(f'降采样点云 ({downsampled_points.shape[0]}点)')
     ax2.set_xlabel('X')
     ax2.set_ylabel('Y')
-    ax2.set_zlabel('Z')
+    try:
+        ax2.set_zlabel('Z')
+    except AttributeError:
+        pass
     ax2.set_xlim(min_vals[0], max_vals[0])
     ax2.set_ylim(min_vals[1], max_vals[1])
-    ax2.set_zlim(min_vals[2], max_vals[2])
+    try:
+        ax2.set_zlim(min_vals[2], max_vals[2])
+    except AttributeError:
+        pass
     
     plt.tight_layout()
     
@@ -154,53 +218,32 @@ def recursive_read_zarr(group, visualize=False, vis_dir=None):
     :param visualize: 是否进行可视化
     :param vis_dir: 可视化图像保存目录
     """
-    if isinstance(group, zarr.core.Array):        
+    if isinstance(group, zarr.Array):        
         # 如果是 agentview_pcd 数据集，进行降采样
-        if 'agentview_pcd' in group.name:
+        if hasattr(group, 'name') and group.name and 'agentview_pcd' in group.name:
             print(f"Performing downsampling on {group.name}")
             points = group[:]  # 原始点云数据 (形状: [B, 128, 128, 6])
             
             # 进行降采样
-            downsampled_points, sampled_indices = downsample_with_fps(points, num_points=1024)
+            downsampled_points, sampled_indices = downsample_with_color_fps(points, num_points=1024)
             
-            # 将结果转为 numpy 数组 (形状: [B, 1024, 3])
+            # 将结果转为 numpy 数组 (形状: [B, 1024, 6])
             downsampled_points_np = np.array(downsampled_points)
-            parent_path = group.name.rsplit('/', 2)[0]
-            root = zarr.open_group(group.store, mode='r+')
-            parent_group = root if parent_path == '' else root[parent_path]
-            
-            # 保存降采样后的点云
-            parent_group.array('pointcloud', downsampled_points_np, overwrite=True)
-            print(f"Saved downsampled pointcloud to: {parent_path}/pointcloud, {downsampled_points_np.shape}")
-            
-            # 可视化检查
-        #     if visualize:
-        #         # 随机选择一个批次进行可视化
-        #         batch_idx = random.randint(0, points.shape[0]-1)
-        #         print(f"Visualizing batch {batch_idx} of {points.shape[0]}")
+            if hasattr(group, 'name') and group.name:
+                parent_path = group.name.rsplit('/', 2)[0]
+                root = zarr.open_group(group.store, mode='r+')
+                parent_group = root if parent_path == '' else root[parent_path]
                 
-        #         # 准备原始点云（取前3通道：xyz）
-        #         original_xyz = points[batch_idx, :, :, :3]
-                
-        #         # 准备降采样点云
-        #         downsampled_xyz = downsampled_points_np[batch_idx]
-                
-        #         # 创建可视化保存路径
-        #         if vis_dir:
-        #             timestamp = int(time.time())
-        #             safe_name = group.name.replace('/', '_').replace(':', '')
-        #             save_path = os.path.join(vis_dir, f"fps_vis_{safe_name}_batch{batch_idx}_{timestamp}.png")
-        #         else:
-        #             save_path = None
-                
-        #         # 执行可视化
-        #         visualize_pointcloud_comparison(original_xyz, downsampled_xyz, save_path)
-
-        # else:
-        #     pass
+                # 保存降采样后的点云
+                try:
+                    parent_group.array('pointcloud', downsampled_points_np, overwrite=True)
+                    print(f"Saved downsampled pointcloud to: {parent_path}/pointcloud, {downsampled_points_np.shape}")
+                except Exception as e:
+                    print(f"Failed to save downsampled pointcloud: {e}")
 
     elif isinstance(group, zarr.Group):
-        print(f"Group Name: {group.name}")
+        if hasattr(group, 'name'):
+            print(f"Group Name: {group.name}")
         for key in group:
             recursive_read_zarr(group[key], visualize, vis_dir)  # 递归读取每个子组或数据集
 
@@ -236,7 +279,7 @@ def read_all_zarr_in_directory(directory, visualize=False, vis_dir=None):
 # 主程序
 if __name__ == "__main__":
     # 指定存放 Zarr 文件夹的目录路径
-    directory_path = '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/3_mix'
+    directory_path = '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero10_overfit'
     
     # 可视化设置
     VISUALIZE = True  # 设置为True启用可视化

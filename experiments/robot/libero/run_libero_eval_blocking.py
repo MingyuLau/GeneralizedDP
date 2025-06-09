@@ -17,7 +17,7 @@ import wandb
 
 # Append current directory so that interpreter can find experiments.robot
 sys.path.append("../..")
-from experiments.robot.libero.libero_utils import (
+from episode_videos.libero_utils import (
     get_libero_dummy_action,
     get_libero_env,
     get_libero_image,

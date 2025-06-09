@@ -1,4 +1,5 @@
 import os
+from re import I
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,13 +13,16 @@ import numpy as np
 import tqdm
 from libero.libero import benchmark
 from collections import deque
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.animation as animation
 sys.path.append("/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy")
 from experiments.debug_utils import setup_debug
 # import wandb
-
+import cv2
 # Append current directory so that interpreter can find experiments.robot
 sys.path.append("../..")
-from experiments.robot.libero.libero_utils import (
+from episode_videos.libero_utils import (
     get_libero_dummy_action,
     get_libero_env,
     get_libero_image,
@@ -160,20 +164,17 @@ from plyfile import PlyData, PlyElement
 def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
     """
     使用 farthest point sampling 对点云进行降采样（纯 PyTorch 实现）
-    :param points: 输入的点云数据 (numpy 数组), 形状 [B, H, W, C]
+    :param points: 输入的点云数据 (numpy 数组), 形状 [N, 6] (xyz+rgb)
     :param num_points: 降采样后的点数
     :return: 降采样后的点云列表和采样点索引列表
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     points_tensor = torch.from_numpy(points).float().to(device)
-    batch_size = points_tensor.shape[0]
     
-    downsampled_points = []
-    sampled_indices_list = []
-    
-    
-    cur_points = points_tensor[:, :3]
-    total_points = cur_points.shape[0]
+    # 分离坐标和颜色信息
+    cur_points_xyz = points_tensor[:, :3]  # 只用xyz来计算距离
+    cur_points_full = points_tensor  # 保留完整的6通道信息
+    total_points = cur_points_xyz.shape[0]
     
     if num_points > total_points:
         raise ValueError(f"num_points ({num_points}) > total points ({total_points})")
@@ -188,9 +189,9 @@ def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
     
     # 迭代选择剩余点
     for j in range(1, num_points):
-        # 计算最新采样点到所有点的距离
-        new_point = cur_points[indices[j-1]]
-        dist_to_new = torch.norm(cur_points - new_point, dim=1)
+        # 计算最新采样点到所有点的距离（只用xyz坐标）
+        new_point = cur_points_xyz[indices[j-1]]
+        dist_to_new = torch.norm(cur_points_xyz - new_point, dim=1)
         
         # 更新最小距离
         distances = torch.min(distances, dist_to_new)
@@ -199,10 +200,11 @@ def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
         farthest_idx = torch.argmax(distances)
         indices[j] = farthest_idx
     
-    # 收集采样点
-    sampled_points = cur_points[indices]
-    downsampled_points.append(sampled_points.cpu().numpy())
-    sampled_indices_list.append(indices.cpu().numpy())
+    # 收集采样点（保留完整的6个通道：xyz+rgb）
+    sampled_points_full = cur_points_full[indices]
+    downsampled_points = [sampled_points_full.cpu().numpy()]
+    sampled_indices_list = [indices.cpu().numpy()]
+    
     return downsampled_points, sampled_indices_list
 def save_point_cloud_to_ply(point_cloud, file_path):
     # 确保颜色值在0-255范围内
@@ -234,6 +236,92 @@ def save_point_cloud_to_ply(point_cloud, file_path):
 # point_cloud = np.random.rand(1024, 6)  # 示例数据
 # point_cloud[:, 3:6] *= 255  # 将颜色值缩放到0-255
 # save_point_cloud_to_ply(point_cloud, 'point_cloud.ply')
+
+def visualize_3d_trajectory(actions_list, save_path=None, title="Robot Trajectory"):
+    """
+    可视化机器人在3D空间中的轨迹
+    
+    Args:
+        actions_list: 动作列表，每个动作包含[x, y, z, rx, ry, rz, gripper]
+        save_path: 保存图片的路径，如果为None则显示图片
+        title: 图片标题
+    """
+    # 提取xyz坐标
+    positions = np.array([[action[0], action[1], action[2]] for action in actions_list])
+    
+    # 创建3D图
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # 绘制轨迹线
+    ax.plot(positions[:, 0], positions[:, 1], positions[:, 2], 
+            'b-', linewidth=2, alpha=0.7, label='Trajectory')
+    
+    # 标记起点和终点
+    ax.scatter(positions[0, 0], positions[0, 1], positions[0, 2], 
+              c='green', s=100, label='Start', marker='o')
+    ax.scatter(positions[-1, 0], positions[-1, 1], positions[-1, 2], 
+              c='red', s=100, label='End', marker='s')
+    
+    # 绘制中间点
+    if len(positions) > 2:
+        ax.scatter(positions[1:-1, 0], positions[1:-1, 1], positions[1:-1, 2], 
+                  c='blue', s=20, alpha=0.6, label='Waypoints')
+    
+    # 设置坐标轴标签
+    ax.set_xlabel('X Position')
+    ax.set_ylabel('Y Position') 
+    ax.set_zlabel('Z Position')  # type: ignore
+    ax.set_title(title)
+    ax.legend()
+    
+    # 设置坐标轴比例相等
+    max_range = np.array([positions[:, 0].max()-positions[:, 0].min(),
+                         positions[:, 1].max()-positions[:, 1].min(),
+                         positions[:, 2].max()-positions[:, 2].min()]).max() / 2.0
+    mid_x = (positions[:, 0].max()+positions[:, 0].min()) * 0.5
+    mid_y = (positions[:, 1].max()+positions[:, 1].min()) * 0.5
+    mid_z = (positions[:, 2].max()+positions[:, 2].min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)  # type: ignore
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"3D轨迹图已保存到: {save_path}")
+    else:
+        plt.show()
+    
+    plt.close()
+
+def visualize_gripper_trajectory(actions_list, save_path=None):
+    """
+    可视化夹爪状态随时间的变化
+    
+    Args:
+        actions_list: 动作列表，每个动作包含[x, y, z, rx, ry, rz, gripper]
+        save_path: 保存图片的路径
+    """
+    gripper_states = [action[6] for action in actions_list]
+    time_steps = range(len(gripper_states))
+    
+    plt.figure(figsize=(10, 4))
+    plt.plot(time_steps, gripper_states, 'ro-', linewidth=2, markersize=4)
+    plt.xlabel('Time Step')
+    plt.ylabel('Gripper State')
+    plt.title('Gripper State Over Time')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"夹爪状态图已保存到: {save_path}")
+    else:
+        plt.show()
+    
+    plt.close()
     
 
 @draccus.wrap()
@@ -384,10 +472,15 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     
                     pcd = np.stack(pcd_history, axis=0)
                     pcd = torch.from_numpy(pcd).unsqueeze(0)
+                    # import pdb; pdb.set_trace()
+                    # 保存点云到PLY文件（仅保存第一帧用于调试）
+                    os.makedirs("/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/pcd_plots", exist_ok=True)
+                    save_point_cloud_to_ply(pcd_history[0], f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/pcd_plots/episode_{total_episodes}_pcd.ply")
                     state = np.stack(state_history, axis=0)
                     state = torch.from_numpy(state).unsqueeze(0)
                     # import pdb; pdb.set_trace()
                     guide_action = torch.zeros(1, 16, 7)
+                    # guide_action = torch.ones(1, 16, 7)
                     observation = {
                         "obs": {
                             'point_cloud': pcd,
@@ -420,15 +513,43 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     # import pdb; pdb.set_trace()
                     # actions = [[0,0,0,0,0,0,0]]
                     # actions = normalize_gripper_action(actions, binarize=True)
-                    # import pdb; pdb.set_trace()
-                    for action in actions[0].tolist():
+                    
+                    # 可视化3D轨迹
+                    actions_list = actions[0].tolist()
+                    trajectory_save_path = f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/trajectory_plots/episode_{total_episodes}_trajectory.png"
+                    gripper_save_path = f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/trajectory_plots/episode_{total_episodes}_gripper.png"
+                    os.makedirs(os.path.dirname(trajectory_save_path), exist_ok=True)
+                    
+                    # 绘制3D轨迹
+                    visualize_3d_trajectory(actions_list, trajectory_save_path, 
+                                          f"Robot 3D Trajectory - Episode {total_episodes}")
+                    
+                    # 绘制夹爪状态
+                    visualize_gripper_trajectory(actions_list, gripper_save_path)
+                    
+                    print(f"Actions序列长度: {len(actions_list)}")
+                    print(f"第一个动作: {actions_list[0]}")
+                    print(f"最后一个动作: {actions_list[-1]}")
+                    
+                    video_path = f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/episode_videos/episode_{total_episodes}_zeros.mp4"
+                    os.makedirs(os.path.dirname(video_path), exist_ok=True)
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    fps = 30  # 根据实际需要调整帧率
+                    img_height, img_width = img.shape[:2]  # 假设img已经定义
+                    video_writer = cv2.VideoWriter(video_path, fourcc, fps, (img_width, img_height))
+                    
+                    for idx, action in enumerate(actions[0].tolist()):
                         action = np.array(action)
                         obs, reward, done, info = env.step(action)
+                        img = get_libero_image(obs, resize_size)
+                        video_writer.write(img)
                         if done:
                             task_successes += 1
                             total_successes += 1
                             break
                         t += 1
+                    video_writer.release()
+                    # import pdb; pdb.set_trace()
                     # Normalize gripper action [0,1] -> [-1,+1] because the environment expects the latter  
                     # action = [0, 0, 0, 0, 0, 0, 0]
                     # obs, reward, done, info = env.step(action)

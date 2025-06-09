@@ -310,7 +310,7 @@ class TrainDP3Workspace:
                     gt_action = batch['action']
                     # import pdb; pdb.set_trace()
                     result = policy.predict_action(obs_dict)
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     pred_action = result['action_pred']
                     mse = torch.nn.functional.mse_loss(pred_action, gt_action)
                     step_log['train_action_mse_error'] = mse.item()

@@ -34,7 +34,7 @@ import robosuite.utils.transform_utils as T
 import tqdm
 from libero.libero import benchmark
 
-from experiments.robot.libero.libero_utils import (
+from episode_videos.libero_utils import (
     get_libero_dummy_action,
     get_libero_env,
 )

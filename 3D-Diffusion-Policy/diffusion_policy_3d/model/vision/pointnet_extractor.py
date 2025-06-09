@@ -285,6 +285,7 @@ class DP3Encoder(nn.Module):
 
 
         #####action fearture######
+        # import pdb; pdb.set_trace()
         if self.action_key in observations.keys():
             
             action = observations[self.action_key]

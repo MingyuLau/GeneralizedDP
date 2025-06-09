@@ -190,15 +190,38 @@ class DP3(BasePolicy):
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         this_n_point_cloud = nobs['point_cloud']
-
+        
         nactions = self.normalizer['action'].normalize(obs_dict['actions'])
+        # import pdb; pdb.set_trace()
+        # nobs['agent_pos'] = torch.tensor([[[ 0.8155, -0.8168,  0.3532, -0.4668, -0.8878,  0.3044, -0.1469,
+        #   -0.8030, -0.3758],
+        #  [ 0.9431, -0.8564,  0.3495, -0.4690, -0.8974,  0.3180, -0.1523,
+        #   -0.7930, -0.3869]]], device='cpu')
+        # nactions = torch.tensor([[
+        #     [-0.0736, -0.0330,  0.4857,  0.1777,  0.4150, -0.5275,  1.0000],
+        #     [-0.1319, -0.0450,  0.2057,  0.2613,  0.5300, -0.5081,  1.0000],
+        #     [-0.1963, -0.0511,  0.0143,  0.3380,  0.6300, -0.5016,  1.0000],
+        #     [-0.2914, -0.0511, -0.0257,  0.3868,  0.6100, -0.5210,  1.0000],
+        #     [-0.3374, -0.0511, -0.1114,  0.3868,  0.5450, -0.5469, -1.0000],
+        #     [-0.4724, -0.0511, -0.4743,  0.2544,  0.3650, -0.5469, -1.0000],
+        #     [-0.5123, -0.0511, -0.6400,  0.2056,  0.2900, -0.4822, -1.0000],
+        #     [-0.5092, -0.0511, -0.6971,  0.1568,  0.3050, -0.4498, -1.0000],
+        #     [-0.4816, -0.0511, -0.7486,  0.1847,  0.3600, -0.3333, -1.0000],
+        #     [-0.4571, -0.0270, -0.7514,  0.2125,  0.3800, -0.2233, -1.0000],
+        #     [-0.4479,  0.0721, -0.7086,  0.1777,  0.3250, -0.2233, -1.0000],
+        #     [-0.4479,  0.1261, -0.6657,  0.1568,  0.2350, -0.2233, -1.0000],
+        #     [-0.3896,  0.1802, -0.5971,  0.1080,  0.1000, -0.2233, -1.0000],
+        #     [-0.3221,  0.1111, -0.5686,  0.1638,  0.1000, -0.2233, -1.0000],
+        #     [-0.3252, -0.0330, -0.5743,  0.2613,  0.1000, -0.2233, -1.0000],
+        #     [-0.3834, -0.0811, -0.5743,  0.3171,  0.1000, -0.4369, -1.0000]
+        # ]], device='cpu')
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
 ############
         sparse_stride = 4
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
         sparse_actions = nactions # [bs, 16, 7]
-        nobs['sparse_actions'] = sparse_actions
+        nobs['sparse_actions'] = sparse_actions[:,:,:3]
 
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
@@ -250,6 +273,8 @@ class DP3(BasePolicy):
         
         # unnormalize prediction
         naction_pred = nsample[...,:Da]
+        # import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         action_pred = self.normalizer['action'].unnormalize(naction_pred)
 
         # get action
@@ -307,8 +332,10 @@ class DP3(BasePolicy):
         nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
         nactions = self.normalizer['action'].normalize(batch['action'])
         # import pdb; pdb.set_trace()
-        # point = nobs['point_cloud'][0][0].cpu().numpy()
+        point = nobs['point_cloud'][0][0].cpu().numpy()
+
         # self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
+        # import pdb; pdb.set_trace()
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         
@@ -318,7 +345,8 @@ class DP3(BasePolicy):
             sparse_stride = 4
             # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
             sparse_actions = nactions # [bs, 16, 7]
-            nobs['sparse_actions'] = sparse_actions
+            nobs['sparse_actions'] = sparse_actions[:,:,:3]
+            # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
 ###########
@@ -335,6 +363,7 @@ class DP3(BasePolicy):
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [bs*2,1024,3] [bs*2,7]
+            # import pdb; pdb.set_trace()
             nobs_features = self.obs_encoder(this_nobs) # [bs*2,64*3]
             # import pdb; pdb.set_trace()
             if "cross_attention" in self.condition_type:

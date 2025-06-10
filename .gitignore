@@ -46,3 +46,9 @@ nohup.out
 output/
 pcd_plots
 trajectory_plots
+episode_videos
+episode_videos_1
+episode_videos_2
+episode_videos_3
+episode_videos_4
+episode_videos_5

@@ -111,7 +111,6 @@ class TrainDP3Workspace:
         
         datas = [d.get_data() for d in dataset.datasets]
         # import pdb; pdb.set_trace()
-        # import pdb; pdb.set_trace()
         normalizer = LinearNormalizer()
         combined_data = {
             key: np.concatenate([d[key] for d in datas], axis=0)

@@ -125,11 +125,11 @@ class LiberoDataset(BaseDataset):
         data = {
             'action': self.replay_buffer['actions'],
             'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
-            # 'point_cloud': np.concatenate([
-            #     self.replay_buffer['pointcloud'],
-            #     self.replay_buffer['pointcloud']
-            # ], axis=-1)
-            'point_cloud': self.replay_buffer['pointcloud']
+            'point_cloud': np.concatenate([
+                self.replay_buffer['pointcloud'],
+                self.replay_buffer['pointcloud']
+            ], axis=-1)
+            # 'point_cloud': self.replay_buffer['pointcloud']
         }
         # data = {
         #     'action': self.replay_buffer['action'],
@@ -146,11 +146,11 @@ class LiberoDataset(BaseDataset):
         data = {
             'action': self.replay_buffer['actions'],
             'agent_pos': self.replay_buffer['robot_states'][..., :9],  # 只取前9维 (qpos)
-            # 'point_cloud': np.concatenate([
-            #     self.replay_buffer['pointcloud'],
-            #     self.replay_buffer['pointcloud']
-            # ], axis=-1)
-            'point_cloud': self.replay_buffer['pointcloud']
+            'point_cloud': np.concatenate([
+                self.replay_buffer['pointcloud'],
+                self.replay_buffer['pointcloud']
+            ], axis=-1)
+            # 'point_cloud': self.replay_buffer['pointcloud']
         }
         # import pdb; pdb.set_trace()
         return data
@@ -165,8 +165,8 @@ class LiberoDataset(BaseDataset):
         # import pdb; pdb.set_trace() 
         data = {
             'obs': {
-                # 'point_cloud': np.concatenate([point_cloud, point_cloud], axis=-1), # T, 1024, 6
-                'point_cloud': point_cloud,
+                'point_cloud': np.concatenate([point_cloud, point_cloud], axis=-1), # T, 1024, 6
+                # 'point_cloud': point_cloud,
                 'agent_pos': agent_pos, # T, D_pos
             },
             'action': sample['actions'].astype(np.float32) # T, D_action

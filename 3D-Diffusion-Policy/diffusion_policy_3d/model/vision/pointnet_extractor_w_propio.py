@@ -220,14 +220,10 @@ class DP3Encoder(nn.Module):
         self.action_key = 'sparse_actions'
 
 
-        self.use_state = self.state_key in observation_space
+        
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
         self.point_cloud_shape = observation_space[self.point_cloud_key]
-        
-        if self.use_state:
-            self.state_shape = observation_space[self.state_key]
-        else:
-            self.state_shape = None
+        self.state_shape = observation_space[self.state_key]
         # import pdb; pdb.set_trace()
         self.action_shape = observation_space[self.action_key]
         if self.use_imagined_robot:
@@ -265,7 +261,7 @@ class DP3Encoder(nn.Module):
 
         # import pdb; pdb.set_trace()
 
-        
+        self.use_state = self.state_key in observation_space
         if self.use_state:
             self.state_shape = observation_space[self.state_key]
             # 创建状态MLP
@@ -314,7 +310,6 @@ class DP3Encoder(nn.Module):
             action_feat = self.action_mlp(action)
             feat_list.append(action_feat)
         
-        # import pdb; pdb.set_trace()
         final_feat = torch.cat(feat_list, dim=-1)
         return final_feat
 

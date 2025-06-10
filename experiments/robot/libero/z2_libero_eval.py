@@ -400,15 +400,18 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     pcd = get_pcd_from_obs(obs)
                     # [10240,3] -> [1024, 3]
                     
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     
                     
-                    pcd = normalize_point_cloud(pcd)
+                    
                     # import pdb; pdb.set_trace()
                     pcd, _ = downsample_with_color_fps(pcd, 1024)
                     # pcd 现在直接是 [1024, 6] 的数组，包含xyz+rgb信息
                     
-                    save_point_cloud_to_ply(pcd, f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/pcd_plots/episode_{total_episodes}_pcd.ply")
+                    # save_point_cloud_to_ply(pcd, f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/pcd_plots/episode_{total_episodes}_pcd.ply")
+                    # import pdb; pdb.set_trace()
+                    # pcd = normalize_point_cloud(pcd)
+
                     # Save preprocessed image for replay video
                     replay_images.append(img)
                     replay_pcds.append(pcd)
@@ -439,7 +442,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     state = np.stack(state_history, axis=0)
                     state = torch.from_numpy(state).unsqueeze(0)
                     # import pdb; pdb.set_trace()
-                    guide_action = torch.zeros(1, 16, 7)
+                    # guide_action = torch.zeros(1, 16, 7)
                     
                     ########################################
                     ####### load gt libero actions #########
@@ -452,6 +455,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     except:
                         gt_action = [[0,0,0,0,0,0,0]] * 16  # Default action if get_actions fails
                     # gt_action = [[0,0,0,0,0,0,0]] * 16
+                    # gt_action = [[0,0,0,0,0,0,0]] * 16
                     guide_action = torch.stack([torch.tensor(gt_action)], dim=0) # type: ignore
                     
                     ########################################
@@ -463,24 +467,43 @@ def eval_libero(cfg: GenerateConfig) -> None:
         #   -0.8030, -0.3758],
         #  [ 0.9431, -0.8564,  0.3495, -0.4690, -0.8974,  0.3180, -0.1523,
         #   -0.7930, -0.3869]]], device='cpu')
-        #             guide_action = torch.tensor([[
-        #             [-0.0736, -0.0330,  0.4857,  0.1777,  0.4150, -0.5275,  1.0000],
-        #             [-0.1319, -0.0450,  0.2057,  0.2613,  0.5300, -0.5081,  1.0000],
-        #             [-0.1963, -0.0511,  0.0143,  0.3380,  0.6300, -0.5016,  1.0000],
-        #             [-0.2914, -0.0511, -0.0257,  0.3868,  0.6100, -0.5210,  1.0000],
-        #             [-0.3374, -0.0511, -0.1114,  0.3868,  0.5450, -0.5469, -1.0000],
-        #             [-0.4724, -0.0511, -0.4743,  0.2544,  0.3650, -0.5469, -1.0000],
-        #             [-0.5123, -0.0511, -0.6400,  0.2056,  0.2900, -0.4822, -1.0000],
-        #             [-0.5092, -0.0511, -0.6971,  0.1568,  0.3050, -0.4498, -1.0000],
-        #             [-0.4816, -0.0511, -0.7486,  0.1847,  0.3600, -0.3333, -1.0000],
-        #             [-0.4571, -0.0270, -0.7514,  0.2125,  0.3800, -0.2233, -1.0000],
-        #             [-0.4479,  0.0721, -0.7086,  0.1777,  0.3250, -0.2233, -1.0000],
-        #             [-0.4479,  0.1261, -0.6657,  0.1568,  0.2350, -0.2233, -1.0000],
-        #             [-0.3896,  0.1802, -0.5971,  0.1080,  0.1000, -0.2233, -1.0000],
-        #             [-0.3221,  0.1111, -0.5686,  0.1638,  0.1000, -0.2233, -1.0000],
-        #             [-0.3252, -0.0330, -0.5743,  0.2613,  0.1000, -0.2233, -1.0000],
-        #             [-0.3834, -0.0811, -0.5743,  0.3171,  0.1000, -0.4369, -1.0000]
-        #         ]], device='cpu')
+                    guide_action = torch.tensor([[
+                    [-0.0736,  -0.0330,   0.4857,   0.1777,   0.4150,  -0.5275,   1.0000],
+                    [-0.0794,  -0.0330,   0.4857,   0.1777,   0.4150,  -0.5275,   1.0000],
+                    [-0.0751,  -0.0330,   0.4857,   0.1777,   0.4150,  -0.5275,   1.0000],
+                    [-0.0709,  0.0330,   0.4857,   0.1777,   0.4150,  -0.5275,   1.0000],
+                    [-0.0767,  0.0430,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [-0.0724,  0.0530,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.218,  0.0630,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.3761,  0.0730,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.4703,  0.0830,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.5745,  0.0930,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.6788,  0.1030,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.7730,  0.1330,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [- 0.8772,  0.1430,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.9715,  0.1530,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.0757,  0.1630,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000],
+                    [ -0.0700,  0.1730,   0.4857,   0.1777,   0.4150,  -0.5275,  -1.0000]
+                ]], device='cpu')
+                    guide_action = torch.tensor([[
+                    [0.054, -0.388, -0.000, 0.014, 0.070, -0.006, -1.000],
+                    [0.056, -0.380, -0.000, 0.013, 0.069, -0.006, -1.000],
+                    [0.051, -0.396, -0.000, 0.015, 0.069, -0.010, -1.000],
+                    [0.046, -0.421, -0.000, 0.018, 0.071, -0.012, -1.000],
+                    [0.035, -0.453, -0.000, 0.024, 0.068, -0.015, -1.000],
+                    [0.048, -0.512, 0.013, 0.032, 0.074, -0.015, -1.000],
+                    [0.043, -0.565, 0.027, 0.041, 0.074, -0.015, -1.000],
+                    [0.072, -0.621, 0.021, 0.047, 0.073, -0.015, -1.000],
+                    [0.112, -0.667, -0.000, 0.051, 0.057, -0.016, -1.000],
+                    [0.137, -0.688, -0.000, 0.055, 0.045, -0.016, -1.000],
+                    [0.142, -0.699, -0.000, 0.057, 0.042, -0.016, -1.000],
+                    [0.137, -0.702, -0.000, 0.059, 0.033, -0.010, -1.000],
+                    [0.150, -0.683, -0.019, 0.059, 0.025, -0.002, -1.000],
+                    [0.163, -0.616, -0.075, 0.049, 0.006, -0.000, -1.000],
+                    [0.161, -0.541, -0.158, 0.039, 0.000, -0.000, -1.000],
+                    [0.177, -0.501, -0.206, 0.033, 0.000, -0.000, -1.000]
+                    ]],device='cpu')
+                    import pdb; pdb.set_trace()
                     observation = {
                         "obs": {
                             'point_cloud': pcd,
@@ -514,7 +537,8 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     # actions = [[0,0,0,0,0,0,0]]
                     # actions = normalize_gripper_action(actions, binarize=True)
                     # import pdb; pdb.set_trace()
-                    video_path = f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/episode_videos/episode_{total_episodes}_overfit.mp4"
+                    # import pdb; pdb.set_trace()
+                    video_path = f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/episode_videos_5/episode_{total_episodes}_{t}_overfit.mp4"
                     os.makedirs(os.path.dirname(video_path), exist_ok=True)
                     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                     fps = 30  # 根据实际需要调整帧率
@@ -531,7 +555,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                             break
                         t += 1
                     video_writer.release()
-                    # import pdb; pdb.set_trace()
+                    import pdb; pdb.set_trace()
                     # for idx, action in enumerate(gt_action.tolist()):
                     #     action = np.array(action)
                     #     obs, reward, done, info = env.step(action)

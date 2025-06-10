@@ -400,7 +400,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     pcd = get_pcd_from_obs(obs)
                     # [10240,3] -> [1024, 3]
                     
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     
                     
                     pcd = normalize_point_cloud(pcd)
@@ -408,7 +408,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     pcd, _ = downsample_with_color_fps(pcd, 1024)
                     # pcd 现在直接是 [1024, 6] 的数组，包含xyz+rgb信息
                     
-                    save_point_cloud_to_ply(pcd, f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/pcd_plots/episode_{total_episodes}_pcd.ply")
+                    # save_point_cloud_to_ply(pcd, f"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/pcd_plots/episode_{total_episodes}_pcd.ply")
                     # Save preprocessed image for replay video
                     replay_images.append(img)
                     replay_pcds.append(pcd)
@@ -602,5 +602,5 @@ def eval_libero(cfg: GenerateConfig) -> None:
 
 
 if __name__ == "__main__":
-    # setup_debug(True)
+    setup_debug(True)
     eval_libero()

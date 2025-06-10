@@ -69,7 +69,7 @@ def get_actions(datasets, task_id, step, target_demo_id):
     # 获取所有演示的 ID 和对应的长度
     demo_ids = np.array(sequence_dataset.demos)
     demo_lengths = np.array([sequence_dataset._demo_id_to_demo_length[demo_id] for demo_id in demo_ids])
-
+    # import pdb; pdb.set_trace()
     if f"demo_{target_demo_id}" not in demo_ids:
         raise ValueError(f"Target demo ID {target_demo_id} not found in the dataset.")
     

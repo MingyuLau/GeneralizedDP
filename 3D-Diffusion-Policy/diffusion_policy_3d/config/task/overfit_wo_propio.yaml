@@ -41,7 +41,7 @@ dataset:
     #   max_train_episodes: 9000
     
     - _target_: diffusion_policy_3d.dataset.libero_dataset.LiberoDataset
-      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero10_overfit
+      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero
       horizon: ${horizon}
       pad_before: ${eval:'${n_obs_steps}-1'}
       pad_after: ${eval:'${n_action_steps}-1'}

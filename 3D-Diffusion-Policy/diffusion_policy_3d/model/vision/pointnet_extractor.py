@@ -309,6 +309,7 @@ class DP3Encoder(nn.Module):
             feat_list.append(state_feat)
         
         # 添加动作特征（如果存在）
+        # import pdb; pdb.set_trace()
         if self.action_key in observations:
             action = observations[self.action_key]
             action_feat = self.action_mlp(action)

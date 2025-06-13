@@ -82,7 +82,7 @@ class UniDataset(BaseDataset):
         buffers = []
         for path in zarr_paths:
             buffer = ReplayBuffer.copy_from_path(
-                path, keys=['state', 'action', 'point_cloud'])
+                path, keys=['state', 'action', 'point_cloud','full_state'])
                 # path, keys=['states', 'action', 'pointclouds']),
             buffers.append(buffer)
         # import pdb; pdb.set_trace()
@@ -106,6 +106,7 @@ class UniDataset(BaseDataset):
             'action': self.replay_buffer['action'],
             'agent_pos': self.replay_buffer['state'][...,:],
             'point_cloud': self.replay_buffer['point_cloud'],
+            'full_state': self.replay_buffer['full_state'][:, :4],
         }
         return data
 
@@ -132,6 +133,7 @@ class UniDataset(BaseDataset):
             'action': self.replay_buffer['action'],
             'agent_pos': self.replay_buffer['state'][...,:],
             'point_cloud': self.replay_buffer['point_cloud'],
+            'full_state': self.replay_buffer['full_state'][:, :4],
         }
         # data = {
         #     'action': self.replay_buffer['action'],
@@ -149,11 +151,13 @@ class UniDataset(BaseDataset):
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
         point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
-
+        full_state = sample['full_state'][:,].astype(np.float32) # (T, 1024, 6)
+        # import pdb; pdb.set_trace()
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 6
                 'agent_pos': agent_pos, # T, D_pos
+                'full_state': full_state[:, :4], # T, D_full_state
             },
             'action': sample['action'].astype(np.float32) # T, D_action
         }

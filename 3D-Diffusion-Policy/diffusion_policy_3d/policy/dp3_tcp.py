@@ -218,10 +218,13 @@ class DP3(BasePolicy):
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
 ############
+        ee_pos = nobs['ee_pos']
         sparse_stride = 4
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-        sparse_actions = nactions # [bs, 16, 7]
-        nobs['sparse_actions'] = sparse_actions[:,:,:3]
+        # sparse_actions = nactions # [bs, 16, 7]
+        # nobs['sparse_actions'] = sparse_actions[:,:,:3]
+        sparse_actions = ee_pos # [bs, 16, 7]
+        nobs['sparse_actions'] = sparse_actions
 
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
@@ -331,10 +334,12 @@ class DP3(BasePolicy):
         # import pdb; pdb.set_trace()
         nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
         nactions = self.normalizer['action'].normalize(batch['action'])
+        ee_pos = nobs['ee_pos']
         # import pdb; pdb.set_trace()
         point = nobs['point_cloud'][0][0].cpu().numpy()
 
         # self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
+        # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
         if not self.use_pc_color:
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
@@ -342,10 +347,12 @@ class DP3(BasePolicy):
             batch_size = nactions.shape[0]
             horizon = nactions.shape[1]
     ############
-            sparse_stride = 4
-            # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-            sparse_actions = nactions # [bs, 16, 7]
-            nobs['sparse_actions'] = sparse_actions[:,:,:3]
+        sparse_stride = 4
+        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
+        sparse_actions = nactions # [bs, 16, 7]
+
+        sparse_actions = ee_pos # [bs, 16, 7]
+        nobs['sparse_actions'] = sparse_actions
             # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()

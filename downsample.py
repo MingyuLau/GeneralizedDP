@@ -279,7 +279,7 @@ def read_all_zarr_in_directory(directory, visualize=False, vis_dir=None):
 # 主程序
 if __name__ == "__main__":
     # 指定存放 Zarr 文件夹的目录路径
-    directory_path = '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero10_overfit'
+    directory_path = '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero10'
     
     # 可视化设置
     VISUALIZE = True  # 设置为True启用可视化

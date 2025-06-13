@@ -116,7 +116,7 @@ class TrainDP3Workspace:
             key: np.concatenate([d[key] for d in datas], axis=0)
             for key in datas[0].keys()  # 使用第一个字典的键作为参考
         }
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         normalizer.fit(data=combined_data, last_n_dims=1, mode='limits')
 
         # configure validation dataset

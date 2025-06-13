@@ -18,7 +18,7 @@ keypoint_visible_rate: 1.0
 obs_as_global_cond: True
 
 policy:
-  _target_: diffusion_policy_3d.policy.dp3.DP3
+  _target_: diffusion_policy_3d.policy.dp3_metaworld_tcp.DP3
   use_point_crop: true
   condition_type: film
   use_down_condition: true
@@ -104,7 +104,7 @@ training:
   resume: True
   lr_scheduler: cosine
   lr_warmup_steps: 500
-  num_epochs: 3000
+  num_epochs: 30
   gradient_accumulate_every: 1
   use_ema: True
   rollout_every: 200

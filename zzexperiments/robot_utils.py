@@ -13,10 +13,10 @@ from experiments.robot.openvla_utils import (
     get_vla_latent_action,
 )
 
-from experiments.robot.dp3_utils import (
+from zzexperiments.dp3_utils import (
     get_dp3,
     get_dp3_action,
-    get_dp3_latent_action,
+    # get_dp3_latent_action,
 )
 
 # Initialize important constants and pretty-printing mode in NumPy.
@@ -45,12 +45,12 @@ def set_seed_everywhere(seed: int):
 
 
 def get_model(cfg, wrap_diffusion_policy_for_droid=False):
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     """Load model for evaluation."""
     if cfg.model_family == "openvla":
         model = get_vla(cfg)
     elif cfg.model_family == "dp3":
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         model = get_dp3(cfg)
     else:
         raise ValueError("Unexpected `model_family` found in config.")

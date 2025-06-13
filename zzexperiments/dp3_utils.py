@@ -28,7 +28,7 @@ import shutil
 import time
 import threading
 from hydra.core.hydra_config import HydraConfig
-sys.path.append("/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/diffusion_policy_3d")
+sys.path.append("/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/3D-Diffusion-Policy/")
 from diffusion_policy_3d.policy.dp3 import DP3
 from diffusion_policy_3d.dataset.base_dataset import BaseDataset
 from diffusion_policy_3d.env_runner.base_runner import BaseRunner
@@ -37,8 +37,10 @@ from diffusion_policy_3d.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy_3d.model.diffusion.ema_model import EMAModel
 from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
 from diffusion_policy_3d.model.common.normalizer import LinearNormalizer, SingleFieldLinearNormalizer
-
-
+from omegaconf import OmegaConf
+import hydra
+import pathlib
+import dill
 # Initialize important constants and pretty-printing mode in NumPy.
 ACTION_DIM = 7
 DATE = time.strftime("%Y_%m_%d")
@@ -52,16 +54,16 @@ OPENVLA_V01_SYSTEM_PROMPT = (
     "The assistant gives helpful, detailed, and polite answers to the user's questions."
 )
 
-
+# dp3_cfg = OmegaConf.load("/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/3D-Diffusion-Policy/data/outputs/libero_calvin_maniskill-dp3-all_0_seed0/.hydra/config.yaml")
 
 def get_dp3(cfg):
     """Loads and returns a DP3 model from checkpoint."""
     # Load DP3 checkpoint.
     print("[*] Instantiating Pretrained DP3 model")
     print("[*] Loading in BF16 with Flash-Attention Enabled")
-
-    model: DP3 = hydra.utils.instantiate(cfg.policy)
-    lastest_ckpt_path = "/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/3D-Diffusion-Policy/data/outputs/libero_calvin_maniskill-dp3-all_0_seed0/checkpoints/latest.ckpt"
+    dp3_cfg = OmegaConf.load("/home/hz/Downloads/config.yaml")
+    model = hydra.utils.instantiate(dp3_cfg.policy)
+    lastest_ckpt_path = "/home/hz/Downloads/latest.ckpt"
     path = pathlib.Path(lastest_ckpt_path)
     payload = torch.load(path.open('rb'), pickle_module=dill, map_location='cpu')
     model.load_state_dict(payload['state_dicts']['model'])
@@ -120,50 +122,16 @@ def crop_and_resize(image, crop_scale, batch_size):
 
     return image
 
-def get_dp3_action(vla, processor, base_vla_name, obs, task_label, unnorm_key, center_crop=False):
+def get_dp3_action(model, obs):
     """Generates an action with the DP3 policy."""
-    image = Image.fromarray(obs["full_image"])
-    image = image.convert("RGB")
+
 
     # (If trained with image augmentations) Center crop image and then resize back up to original size.
     # IMPORTANT: Let's say crop scale == 0.9. To get the new height and width (post-crop), multiply
     #            the original height and width by sqrt(0.9) -- not 0.9!
-    if center_crop:
-        batch_size = 1
-        crop_scale = 0.9
-
-        # Convert to TF Tensor and record original data type (should be tf.uint8)
-        image = tf.convert_to_tensor(np.array(image))
-        orig_dtype = image.dtype
-
-        # Convert to data type tf.float32 and values between [0,1]
-        image = tf.image.convert_image_dtype(image, tf.float32)
-
-        # Crop and then resize back to original size
-        image = crop_and_resize(image, crop_scale, batch_size)
-
-        # Convert back to original data type
-        image = tf.clip_by_value(image, 0, 1)
-        image = tf.image.convert_image_dtype(image, orig_dtype, saturate=True)
-
-        # Convert back to PIL Image
-        image = Image.fromarray(image.numpy())
-        image = image.convert("RGB")
-
-    # Build VLA prompt
-    if "openvla-v01" in base_vla_name:  # OpenVLA v0.1
-        prompt = (
-            f"{OPENVLA_V01_SYSTEM_PROMPT} USER: What action should the robot take to {task_label.lower()}? ASSISTANT:"
-        )
-    else:  # OpenVLA
-        prompt = f"In: What action should the robot take to {task_label.lower()}?\nOut:"
-
-    # Process inputs.
-    inputs = processor(prompt, image).to(DEVICE, dtype=torch.bfloat16)
-
-    # Get action.
-    action = vla.predict_action(**inputs, unnorm_key=unnorm_key, do_sample=True, top_p=0.75)
-    return action
+    # import pdb; pdb.set_trace()
+    result = model.predict_action(obs)
+    return result
 
         # Convert back to PIL Image
 

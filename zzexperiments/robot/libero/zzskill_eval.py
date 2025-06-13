@@ -21,7 +21,7 @@ sys.path.append("/home/hz/code/GeneralizedDP/")
 import cv2
 # Append current directory so that interpreter can find experiments.robot
 # sys.path.append("../..")
-from experiments.robot.libero.libero_utils import (
+from zzexperiments.robot.libero.libero_utils import (
     get_libero_dummy_action,
     get_libero_env,
     get_libero_image,
@@ -29,7 +29,7 @@ from experiments.robot.libero.libero_utils import (
     save_rollout_video,
 )
 # from experiments.robot.openvla_utils import get_processor
-from experiments.robot.robot_utils import (
+from zzexperiments.robot_utils import (
     DATE_TIME,
     get_latent_action,
     get_action,
@@ -305,20 +305,6 @@ def eval_libero(cfg: GenerateConfig) -> None:
     # import pdb; pdb.set_trace()
     model = get_model(cfg)
 
-    # wrapped_model Check that the model contains the action un-normalization key
-    # if cfg.model_family == "openvla":
-    #     # In some cases, the key must be manually modified (e.g. after training on a modified version of the dataset
-    #     # with the suffix "_no_noops" in the dataset name)
-    #     if cfg.unnorm_key not in model.norm_stats and f"{cfg.unnorm_key}_no_noops" in model.norm_stats:
-    #         cfg.unnorm_key = f"{cfg.unnorm_key}_no_noops"
-    #     assert cfg.unnorm_key in model.norm_stats, f"Action un-norm key {cfg.unnorm_key} not found in VLA `norm_stats`!"
-
-    # wrapped_model Get Hugging Face processor
-    # processor = None
-    # if cfg.model_family == "openvla":
-    #     processor = get_processor(cfg)
-
-    # Initialize local logging
     run_id = f"EVAL-{cfg.task_suite_name}-{cfg.model_family}-{DATE_TIME}"
     if cfg.run_id_note is not None:
         run_id += f"--{cfg.run_id_note}"
@@ -506,7 +492,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     [0.161, -0.541, -0.158, 0.039, 0.000, -0.000, -1.000],
                     [0.177, -0.501, -0.206, 0.033, 0.000, -0.000, -1.000]
                     ]],device='cpu')
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     observation = {
                         "obs": {
                             'point_cloud': pcd,
@@ -558,7 +544,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                             break
                         t += 1
                     video_writer.release()
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     # for idx, action in enumerate(gt_action.tolist()):
                     #     action = np.array(action)
                     #     obs, reward, done, info = env.step(action)

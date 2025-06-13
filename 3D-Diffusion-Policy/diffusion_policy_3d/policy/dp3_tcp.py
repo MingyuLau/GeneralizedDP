@@ -191,7 +191,7 @@ class DP3(BasePolicy):
             nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         this_n_point_cloud = nobs['point_cloud']
         
-        nactions = self.normalizer['action'].normalize(obs_dict['actions'])
+        # nactions = self.normalizer['action'].normalize(obs_dict['actions'])
         # import pdb; pdb.set_trace()
         # nobs['agent_pos'] = torch.tensor([[[ 0.8155, -0.8168,  0.3532, -0.4668, -0.8878,  0.3044, -0.1469,
         #   -0.8030, -0.3758],
@@ -215,8 +215,8 @@ class DP3(BasePolicy):
         #     [-0.3252, -0.0330, -0.5743,  0.2613,  0.1000, -0.2233, -1.0000],
         #     [-0.3834, -0.0811, -0.5743,  0.3171,  0.1000, -0.4369, -1.0000]
         # ]], device='cpu')
-        batch_size = nactions.shape[0]
-        horizon = nactions.shape[1]
+        # batch_size = nactions.shape[0]
+        # horizon = nactions.shape[1]
 ############
         ee_pos = nobs['ee_pos']
         sparse_stride = 4

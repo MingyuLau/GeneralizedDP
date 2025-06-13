@@ -30,7 +30,7 @@ class MetaWorldEnv(gym.Env):
             task_name = task_name + '-v2-goal-observable'
 
         self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
-        self.env._freeze_rand_vec = False
+        self.env._freeze_rand_vec = True
 
         # https://arxiv.org/abs/2212.05698
         # self.env.sim.model.cam_pos[2] = [0.75, 0.075, 0.7]

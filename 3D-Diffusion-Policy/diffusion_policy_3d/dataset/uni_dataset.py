@@ -81,6 +81,7 @@ class UniDataset(BaseDataset):
         """
         buffers = []
         for path in zarr_paths:
+            print(path)
             buffer = ReplayBuffer.copy_from_path(
                 path, keys=['state', 'action', 'point_cloud','full_state'])
                 # path, keys=['states', 'action', 'pointclouds']),
@@ -141,6 +142,7 @@ class UniDataset(BaseDataset):
         #     'point_cloud': self.replay_buffer['pointclouds'],
         # }
         normalizer = LinearNormalizer()
+        
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer

@@ -5,7 +5,6 @@ import torch
 from collections import defaultdict, deque
 import dill
 
-
 def stack_repeated(x, n):
     return np.repeat(np.expand_dims(x,axis=0),n,axis=0)
 
@@ -135,6 +134,7 @@ class MultiStepWrapper(gym.Wrapper):
         return obs
 
     def step(self, action):
+        # 打印super对象支持的所有属性与方法
         """
         actions: (n_action_steps,) + action_shape
         """

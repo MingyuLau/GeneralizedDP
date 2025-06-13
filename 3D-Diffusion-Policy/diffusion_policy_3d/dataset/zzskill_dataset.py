@@ -86,7 +86,6 @@ class ZzskillDataset(BaseDataset):
         """
         buffers = []
         for path in zarr_paths:
-            # import pdb; pdb.set_trace()
             buffer = ReplayBuffer.copy_from_path(
                 path, keys=['state', 'action', 'point_cloud'])
                 # path, keys=['states', 'action', 'pointclouds']),
@@ -144,10 +143,17 @@ class ZzskillDataset(BaseDataset):
         return normalizer
     
     def get_data(self, mode='limits', **kwargs):
+        
+        actions = self.replay_buffer['action']
+        tcp_poses = self.replay_buffer['state'][..., -7:]  # 取末尾7维 (ee_pos)
+        ee_pos = convert_action_state(tcp_poses, actions)  # (T, 7)
+        ee_pos_quat = convert_action_state_quat(tcp_poses, actions)  # (T, 8)
+        
         data = {
             'action': self.replay_buffer['action'],
             'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
-            'ee_pos': self.replay_buffer['state'][..., -7:],  # 取末尾7维 (ee_pos)
+            'ee_pos': ee_pos,
+            'ee_pos_quat': ee_pos_quat,
             'point_cloud': self.replay_buffer['point_cloud'],
         }
         return data
@@ -163,13 +169,14 @@ class ZzskillDataset(BaseDataset):
         tcp_poses = sample['state'][..., -7:]
         
         ee_pos = convert_action_state(tcp_poses, actions)  # (T, 7)
-        # ee_pos = convert_action_state_quat(tcp_poses, actions)  # (T, 8)
+        ee_pos_quat = convert_action_state_quat(tcp_poses, actions)  # (T, 8)
 
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 6
                 'agent_pos': agent_pos, # T, D_pos
                 'ee_pos': ee_pos,
+                'ee_pos_quat': ee_pos_quat,
             },
             'action': sample['action'].astype(np.float32) # T, D_action
         }

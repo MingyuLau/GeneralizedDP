@@ -1,0 +1,1 @@
+bash scripts/zztrain.sh zz3 zzskill all_traj_1 0

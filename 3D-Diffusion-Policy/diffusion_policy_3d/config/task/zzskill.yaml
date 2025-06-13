@@ -11,6 +11,9 @@ shape_meta: &shape_meta
     agent_pos:
       shape: [9]
       type: low_dimx
+    sparse_actions:
+      shape: [3]
+      type: low_dimx
   action:
     shape: [7]
 
@@ -18,7 +21,15 @@ env_runner: null
 
 dataset:
   _target_: diffusion_policy_3d.dataset.zzskill_dataset.ZzskillDataset
-  zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill
+  zarr_path: /home/hz/code/GeneralizedDP/3D-Diffusion-Policy/data/dataset/maniskill
+  # zarr_path: /home/hz/code/GeneralizedDP/3D-Diffusion-Policy/data/dataset/zzskill
+
+  # _target_: diffusion_policy_3d.dataset.zzcalvin_dataset.zzCalvinDataset
+  # zarr_path: /home/hz/code/GeneralizedDP/3D-Diffusion-Policy/data/dataset/calvin
+
+  # _target_: diffusion_policy_3d.dataset.zzlibero_dataset.zzLiberoDataset
+  # zarr_path: /home/hz/code/GeneralizedDP/3D-Diffusion-Policy/data/dataset/LIBERO
+
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

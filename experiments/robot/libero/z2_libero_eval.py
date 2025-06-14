@@ -503,7 +503,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                     [0.161, -0.541, -0.158, 0.039, 0.000, -0.000, -1.000],
                     [0.177, -0.501, -0.206, 0.033, 0.000, -0.000, -1.000]
                     ]],device='cpu')
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     observation = {
                         "obs": {
                             'point_cloud': pcd,
@@ -555,7 +555,7 @@ def eval_libero(cfg: GenerateConfig) -> None:
                             break
                         t += 1
                     video_writer.release()
-                    import pdb; pdb.set_trace()
+                    # import pdb; pdb.set_trace()
                     # for idx, action in enumerate(gt_action.tolist()):
                     #     action = np.array(action)
                     #     obs, reward, done, info = env.step(action)
@@ -626,5 +626,5 @@ def eval_libero(cfg: GenerateConfig) -> None:
 
 
 if __name__ == "__main__":
-    # setup_debug(True)
+    setup_debug(True)
     eval_libero()

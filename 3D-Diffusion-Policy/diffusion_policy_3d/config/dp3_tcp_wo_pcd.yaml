@@ -18,7 +18,7 @@ keypoint_visible_rate: 1.0
 obs_as_global_cond: True
 
 policy:
-  _target_: diffusion_policy_3d.policy.dp3_tcp.DP3
+  _target_: diffusion_policy_3d.policy.dp3_tcp_wo_pcd.DP3
   use_point_crop: true
   condition_type: film
   use_down_condition: true

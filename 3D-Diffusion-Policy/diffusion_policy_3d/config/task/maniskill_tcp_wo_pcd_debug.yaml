@@ -1,0 +1,70 @@
+name: calvin_maniskill
+
+task_name: calvin_maniskill  # 更新任务名称
+
+shape_meta: &shape_meta
+  # 根据实际传感器配置修改
+  obs:
+    # point_cloud:
+    #   shape: [1024, 3]
+    #   type: point_cloud
+    agent_pos:
+      shape: [9]
+      type: low_dimx
+    sparse_actions:
+      shape: [7]
+      type: low_dimx
+  action:
+    shape: [7]
+
+env_runner: null
+
+dataset:
+  _target_: torch.utils.data.ConcatDataset
+  datasets:
+    # - _target_: diffusion_policy_3d.dataset.calvin_dataset.CalvinDataset
+    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_calvin
+    #   horizon: ${horizon}
+    #   pad_before: ${eval:'${n_obs_steps}-1'}
+    #   pad_after: ${eval:'${n_action_steps}-1'}
+    #   seed: 42
+    #   val_ratio: 0.1
+    #   max_train_episodes: 9000
+      
+    - _target_: diffusion_policy_3d.dataset.zzskill_dataset_wo_pcd.ZzskillDataset  # 改为ManiSkill数据集
+      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill_tcp_debug
+      horizon: ${horizon}
+      pad_before: ${eval:'${n_obs_steps}-1'}
+      pad_after: ${eval:'${n_action_steps}-1'}
+      seed: 42
+      val_ratio: 0.1
+      max_train_episodes: 9000
+    
+    # - _target_: diffusion_policy_3d.dataset.libero_dataset.LiberoDataset
+    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_libero
+    #   horizon: ${horizon}
+    #   pad_before: ${eval:'${n_obs_steps}-1'}
+    #   pad_after: ${eval:'${n_action_steps}-1'}
+    #   seed: 42
+    #   val_ratio: 0.1
+    #   max_train_episodes: 9000
+
+    # - _target_: diffusion_policy_3d.dataset.uni_dataset.UniDataset
+    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/2_mix
+    #   horizon: ${horizon}
+    #   pad_before: ${eval:'${n_obs_steps}-1'}
+    #   pad_after: ${eval:'${n_action_steps}-1'}
+    #   seed: 42
+    #   val_ratio: 0.02
+    #   max_train_episodes: 10
+
+    # - _target_: diffusion_policy_3d.dataset.uni_dataset.UniDataset
+    #   zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/1_mix
+    #   horizon: ${horizon}
+    #   pad_before: ${eval:'${n_obs_steps}-1'}
+    #   pad_after: ${eval:'${n_action_steps}-1'}
+    #   seed: 42
+    #   val_ratio: 0.02
+    #   max_train_episodes: 10 
+
+      # 公共参数

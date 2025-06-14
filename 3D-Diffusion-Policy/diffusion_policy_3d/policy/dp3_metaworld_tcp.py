@@ -329,7 +329,26 @@ class DP3(BasePolicy):
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
         sparse_actions = nactions # [bs, 16, 7]
         nobs['sparse_actions'] = full_state
-            # import pdb; pdb.set_trace()
+
+        bs = full_state.shape[0]
+        # indices = torch.tensor([1, 3, 5, 7, 9, 11, 13, 15])
+        # indices = torch.tensor([7, 15])
+        # indices = torch.tensor([15])
+        # sparse_actions = torch.zeros_like(full_state)
+        # sparse_actions[:, indices, :] = full_state[:, indices, :]
+        # nobs['sparse_actions'] = sparse_actions
+
+        bs, T, D = full_state.shape
+        keep_num = int(T * 0.2)  # 保留20%
+        sparse_actions = torch.zeros_like(full_state)
+
+        for b in range(bs):
+            indices = torch.randperm(T)[:keep_num]  # 随机选20%
+            sparse_actions[b, indices, :] = full_state[b, indices, :]
+
+        nobs['sparse_actions'] = sparse_actions
+
+        # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
 ###########

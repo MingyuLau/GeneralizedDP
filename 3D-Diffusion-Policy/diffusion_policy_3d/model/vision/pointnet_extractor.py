@@ -216,13 +216,17 @@ class DP3Encoder(nn.Module):
         self.state_key = 'agent_pos'
         self.point_cloud_key = 'point_cloud'
         self.rgb_image_key = 'image'
-        self.n_output_channels = out_channel
+        if self.point_cloud_key in observation_space:
+            self.n_output_channels = out_channel
+        else:
+            self.n_output_channels = 0
+
         self.action_key = 'sparse_actions'
 
 
         self.use_state = self.state_key in observation_space
+        self.use_point_cloud = self.point_cloud_key in observation_space
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
-        self.point_cloud_shape = observation_space[self.point_cloud_key]
         
         if self.use_state:
             self.state_shape = observation_space[self.state_key]
@@ -235,24 +239,32 @@ class DP3Encoder(nn.Module):
         else:
             self.imagination_shape = None
             
+        if self.use_point_cloud:
+            self.point_cloud_shape = observation_space[self.point_cloud_key]
+            self.use_pc_color = use_pc_color
+            self.pointnet_type = pointnet_type
+            if pointnet_type == "pointnet":
+                if use_pc_color:
+                    pointcloud_encoder_cfg.in_channels = 6
+                    self.extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
+                else:
+                    pointcloud_encoder_cfg.in_channels = 3
+                    self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+            else:
+                raise NotImplementedError(f"pointnet_type: {pointnet_type}")
+            cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
+        else:
+            self.extractor = None
+            cprint(f"[DP3Encoder] point cloud key {self.point_cloud_key} not found, skipping point cloud features", "yellow")   
+
         
         
-        cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
         cprint(f"[DP3Encoder] state shape: {self.state_shape}", "yellow")
         cprint(f"[DP3Encoder] imagination point shape: {self.imagination_shape}", "yellow")
         
 
-        self.use_pc_color = use_pc_color
-        self.pointnet_type = pointnet_type
-        if pointnet_type == "pointnet":
-            if use_pc_color:
-                pointcloud_encoder_cfg.in_channels = 6
-                self.extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
-            else:
-                pointcloud_encoder_cfg.in_channels = 3
-                self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
-        else:
-            raise NotImplementedError(f"pointnet_type: {pointnet_type}")
+        
+
 
 
         if len(state_mlp_size) == 0:
@@ -289,18 +301,18 @@ class DP3Encoder(nn.Module):
         self.n_output_channels += output_dim
 
     def forward(self, observations: Dict) -> torch.Tensor:
+        feat_list = []
+        if self.use_point_cloud:
+            points = observations[self.point_cloud_key]
+            assert len(points.shape) == 3, cprint(f"point cloud shape: {points.shape}, length should be 3", "red")
+            if self.use_imagined_robot:
+                img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
+                points = torch.concat([points, img_points], dim=1)
         
-        points = observations[self.point_cloud_key]
-        assert len(points.shape) == 3, cprint(f"point cloud shape: {points.shape}, length should be 3", "red")
-        if self.use_imagined_robot:
-            img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
-            points = torch.concat([points, img_points], dim=1)
-        
-        # points = torch.transpose(points, 1, 2)   # B * 3 * N
-        # points: B * 3 * (N + sum(Ni))
-        pn_feat = self.extractor(points)    # B * out_channel [bs, 1024, 3] -> [bs, 64]
-            
-        feat_list = [pn_feat]
+            # points = torch.transpose(points, 1, 2)   # B * 3 * N
+            # points: B * 3 * (N + sum(Ni))
+            pn_feat = self.extractor(points)    # B * out_channel [bs, 1024, 3] -> [bs, 64]
+            feat_list.append(pn_feat)
         
         # 添加状态特征（如果存在）
         if self.use_state:
@@ -315,8 +327,10 @@ class DP3Encoder(nn.Module):
             action_feat = self.action_mlp(action)
             feat_list.append(action_feat)
         
-        # import pdb; pdb.set_trace()
+        if len(feat_list) == 0:
+            raise ValueError("At least one input feature should be available")
         final_feat = torch.cat(feat_list, dim=-1)
+        
         return final_feat
 
 

@@ -187,9 +187,9 @@ class DP3(BasePolicy):
         # normalize input
         nobs = self.normalizer.normalize(obs_dict['obs'])
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
-        if not self.use_pc_color:
-            nobs['point_cloud'] = nobs['point_cloud'][..., :3]
-        this_n_point_cloud = nobs['point_cloud']
+        # if not self.use_pc_color:
+        #     nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+        # this_n_point_cloud = nobs['point_cloud']
         
         # nactions = self.normalizer['action'].normalize(obs_dict['actions'])
         # batch_size = nactions.shape[0]
@@ -313,16 +313,16 @@ class DP3(BasePolicy):
         nactions = self.normalizer['action'].normalize(batch['action'])
         ee_pos = nobs['ee_pos']
         # import pdb; pdb.set_trace()
-        point = nobs['point_cloud'][0][0].cpu().numpy()
+        # point = nobs['point_cloud'][0][0].cpu().numpy()
 
         # self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
-        if not self.use_pc_color:
-            nobs['point_cloud'] = nobs['point_cloud'][..., :3]
+        # if not self.use_pc_color:
+        #     nobs['point_cloud'] = nobs['point_cloud'][..., :3]
         
-            batch_size = nactions.shape[0]
-            horizon = nactions.shape[1]
+        batch_size = nactions.shape[0]
+        horizon = nactions.shape[1]
     ############
         sparse_stride = 4
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
@@ -358,8 +358,8 @@ class DP3(BasePolicy):
                 # reshape back to B, Do
                 global_cond = nobs_features.reshape(batch_size, -1) # [bs,384]
             # this_n_point_cloud = this_nobs['imagin_robot'].reshape(batch_size,-1, *this_nobs['imagin_robot'].shape[1:])
-            this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
-            this_n_point_cloud = this_n_point_cloud[..., :3]
+            # this_n_point_cloud = this_nobs['point_cloud'].reshape(batch_size,-1, *this_nobs['point_cloud'].shape[1:])
+            # this_n_point_cloud = this_n_point_cloud[..., :3]
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))

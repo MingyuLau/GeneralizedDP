@@ -99,10 +99,11 @@ def main(args):
 			depth_arrays_sub.append(obs_depth)
 			state_arrays_sub.append(obs_robot_state)
 			full_state_arrays_sub.append(raw_state)
-			
+			print(raw_state.shape)
 			action = mw_policy.get_action(raw_state)
 		
 			action_arrays_sub.append(action)
+			print(action.shape)
 			obs_dict, reward, done, info = e.step(action)
 			raw_state = obs_dict['full_state']
 			ep_reward += reward

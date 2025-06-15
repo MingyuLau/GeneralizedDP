@@ -22,7 +22,7 @@ env_runner: null
 
 dataset:
   _target_: diffusion_policy_3d.dataset.uni_dataset.UniDataset
-  zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/metaworld
+  zarr_path: /data1/lxy-24/Data/metaworld/WhiteScale___GeneralizedDP3/data
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}

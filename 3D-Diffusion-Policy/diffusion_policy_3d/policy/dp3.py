@@ -186,6 +186,7 @@ class DP3(BasePolicy):
         """
         # normalize input
         # import pdb; pdb.set_trace()
+        
         nobs = self.normalizer.normalize(obs_dict['obs'])
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
         if not self.use_pc_color:

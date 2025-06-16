@@ -205,8 +205,12 @@ def get_maniskill_observation(last_obs, obs, ee_pose_traj, step):
     if step + 16 > len(ee_pose_traj):
         ee_pos = ee_pose_traj[-1]
         ee_pos= np.array([ee_pos] * 16)
+        # ee_pos = np.array([[0,0,0,0,0,0,0]] * 16, dtype=float)
+        # ee_pos = np.array([[1,1,1,1,1,1,1]] * 16, dtype=float)
     else:
         ee_pos = ee_pose_traj[step:step+16, ...]
+        # ee_pos = np.array([[0,0,0,0,0,0,0]] * 16, dtype=float)
+        # ee_pos = np.array([[1,1,1,1,1,1,1]] * 16, dtype=float)
     res_ee_pos = torch.tensor([ee_pos])
     
     res_pcd = torch.tensor(np.array([last_pcd, pcd])).unsqueeze(0)
@@ -216,7 +220,7 @@ def get_maniskill_observation(last_obs, obs, ee_pose_traj, step):
 
     observation = {
         "obs": {
-            'point_cloud': res_pcd,
+            # 'point_cloud': res_pcd,
             'agent_pos': res_state,
             "ee_pos": res_ee_pos,
         },
@@ -251,10 +255,11 @@ def get_maniskill_eepose_traj(data):
 
 def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
     # Load HDF5 containing trajectories
-    path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.rgbd.pd_ee_delta_pose.h5"
+    
+    path = maniskill_cfg.traj_path
     group_name = f"traj_{proc_id}"  
     data = read_hdf5_group(path, group_name)
-    traj_path = maniskill_cfg.traj_path
+    
     # ori_h5_file = h5py.File(traj_path, "r")
 
     eepose_traj = get_maniskill_eepose_traj(data)
@@ -262,7 +267,7 @@ def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
     data_actions = data['actions']
 
     # Load associated json
-    json_path = traj_path.replace(".h5", ".json")
+    json_path = maniskill_cfg.traj_json_path
     json_data = load_json(json_path)
 
     env_info = json_data["env_info"]
@@ -314,8 +319,10 @@ def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
 
         for (i, step_action) in enumerate(action[0]):
             last_obs = obs
-            obs, _, _, _, info = env.step(step_action)
-            # obs, _, _, _, info = env.step(data_actions[t - cfg.num_steps_wait % len(data_actions)])
+            # obs, _, _, _, info = env.step(step_action)
+            print("DP3 action:", step_action)
+            print("gt action:", data_actions[t - cfg.num_steps_wait % len(data_actions)])
+            obs, _, _, _, info = env.step(data_actions[t - cfg.num_steps_wait % len(data_actions)])
             t += 1
         success = info.get("success", False)
         if success:
@@ -332,11 +339,12 @@ def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
 
 class ManiskillCfg:
     obs_mode = "pointcloud"
-    traj_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.h5"
+    traj_json_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.json"
+    traj_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.rgbd.pd_ee_delta_pose.h5"
     target_control_mode = "pd_ee_delta_pose"
     bg_name = None
     vis = False
-    env_reset_seed = 1
+    env_reset_seed = 100
 
 @draccus.wrap()
 def eval_maniskill(cfg: GenerateConfig) -> None:
@@ -353,7 +361,8 @@ def eval_maniskill(cfg: GenerateConfig) -> None:
     model = get_model(cfg)
     
     maniskill_cfg = ManiskillCfg()
-    maniskill_run(cfg, maniskill_cfg, model)
+    proc_id = maniskill_cfg.env_reset_seed
+    maniskill_run(cfg, maniskill_cfg, model, proc_id)
 
 
 if __name__ == "__main__":

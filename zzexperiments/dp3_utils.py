@@ -61,10 +61,16 @@ def get_dp3(cfg):
     # Load DP3 checkpoint.
     print("[*] Instantiating Pretrained DP3 model")
     print("[*] Loading in BF16 with Flash-Attention Enabled")
-    dp3_cfg = OmegaConf.load("/home/hz/Downloads/config.yaml")
+    # dp3_cfg = OmegaConf.load("/home/hz/Downloads/config.yaml")
+    # model = hydra.utils.instantiate(dp3_cfg.policy)
+    # lastest_ckpt_path = "/home/hz/Downloads/epoch=0024-test_mean_score=-0.004.ckpt"
+    # path = pathlib.Path(lastest_ckpt_path)
+    
+    dp3_cfg = OmegaConf.load("/home/hz/Downloads/nopcd_config.yaml")
     model = hydra.utils.instantiate(dp3_cfg.policy)
-    lastest_ckpt_path = "/home/hz/Downloads/latest.ckpt"
+    lastest_ckpt_path = "/home/hz/Downloads/nopcd_epoch=0586-test_mean_score=-0.000.ckpt"
     path = pathlib.Path(lastest_ckpt_path)
+    
     payload = torch.load(path.open('rb'), pickle_module=dill, map_location='cpu')
     model.load_state_dict(payload['state_dicts']['model'])
 

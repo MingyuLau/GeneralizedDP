@@ -68,7 +68,11 @@ def get_dp3(cfg):
     
     dp3_cfg = OmegaConf.load("/home/hz/Downloads/nopcd_config.yaml")
     model = hydra.utils.instantiate(dp3_cfg.policy)
-    lastest_ckpt_path = "/home/hz/Downloads/nopcd_epoch=0586-test_mean_score=-0.000.ckpt"
+    # lastest_ckpt_path = "/home/hz/Downloads/latest.ckpt"
+    # import pdb; pdb.set_trace()
+    # lastest_ckpt_path = "/home/hz/Downloads/nopcd_epoch=0029-test_mean_score=-0.004.ckpt"
+    # lastest_ckpt_path = "/home/hz/Downloads/nopcd_epoch=0586-test_mean_score=-0.000.ckpt"
+    lastest_ckpt_path = "/home/hz/Downloads/lmy_debug_latest.ckpt"
     path = pathlib.Path(lastest_ckpt_path)
     
     payload = torch.load(path.open('rb'), pickle_module=dill, map_location='cpu')

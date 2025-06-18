@@ -11,9 +11,11 @@ import os
 from copy import deepcopy
 from typing import Union
 
+from flask import wrappers
 import gymnasium as gym
 import h5py
 import numpy as np
+from requests import get
 import sapien.core as sapien
 from tqdm.auto import tqdm
 from transforms3d.quaternions import quat2axangle
@@ -72,6 +74,8 @@ import numpy as np
 import pytorch3d.ops as torch3d_ops
 
 from plyfile import PlyData, PlyElement
+
+from mani_skill.utils import wrappers
 
 
 def downsample_with_fps(points: np.ndarray, num_points: int = 1024):
@@ -206,7 +210,7 @@ def get_maniskill_observation(last_obs, obs, ee_pose_traj, step):
         ee_pos = ee_pose_traj[step:step+16, ...]
         # ee_pos = np.array([[0,0,0,0,0,0,0]] * 16, dtype=float)
         # ee_pos = np.array([[1,1,1,1,1,1,1]] * 16, dtype=float)
-    res_ee_pos = torch.tensor([ee_pos])
+    res_ee_pos = torch.tensor(np.array([ee_pos]))
     
     # res_pcd = torch.tensor(np.array([last_pcd, pcd])).unsqueeze(0)
     res_state = torch.tensor(np.array([last_state, state])).unsqueeze(0)
@@ -225,6 +229,7 @@ def get_maniskill_observation(last_obs, obs, ee_pose_traj, step):
     return observation
 
 
+
 def convert_action_state(tcp_poses, actions):
     def quaternion_to_euler(quaternion):
         from scipy.spatial.transform import Rotation as R
@@ -239,7 +244,6 @@ def convert_action_state(tcp_poses, actions):
 
 def get_maniskill_eepose_traj(data):
     eepose_traj = None
-    # import pdb; pdb.set_trace()
     tcp_poses = data["obs"]["extra"]["tcp_pose"]
     actions = data["actions"]
     if len(actions) < len(tcp_poses):
@@ -249,42 +253,83 @@ def get_maniskill_eepose_traj(data):
     return eepose_traj
 
 
-def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
+def get_maniskill_zarr_eepose_traj(action, tcp_poses):
+    eepose_traj = None
+
+    if len(action) < len(tcp_poses):
+        action = np.concatenate([action, [action[-1]]], axis=0)
+
+    eepose_traj = convert_action_state(tcp_poses, action)
+    return eepose_traj
+
+
+
+class ManiskillCfg:
+    obs_mode = "pointcloud"
+    traj_json_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.json"
+    # traj_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.rgbd.pd_ee_delta_pose.h5"
+    traj_path = "/home/hz/code/GeneralizedDP/3D-Diffusion-Policy/data/dataset/maniskill/StackCube"
+    # target_control_mode = "pd_ee_delta_pose"
+    target_control_mode = "pd_ee_pose"
+    # bg_name = None
+    vis = False
+    # vis = True
+    env_reset_seed = 100
+    env_kwargs = {
+        'obs_mode': 'pointcloud', 
+        'control_mode': 'pd_ee_pose', 
+        'render_mode': 'rgb_array', 
+        'reward_mode': None, 
+        'sensor_configs': {'shader_pack': 'default'}, 
+        'human_render_camera_configs': {'shader_pack': 'default'}, 
+        'viewer_camera_configs': {'shader_pack': 'default'}, 
+        'sim_backend': 'physx_cpu', 
+        'num_envs': 1
+    }
+    output_dir = "./zzskill3_simple_eval"
+    record_episode_kwargs = {
+        'save_on_reset': True, 
+        'save_trajectory': False, 
+        'save_video': True, 
+        'record_reward': False
+    }
+    env_id = "StackCube-v1"
+
+
+def maniskill_run(cfg: GenerateConfig, maniskill_cfg: ManiskillCfg, model, proc_id: int = 0):
     # Load HDF5 containing trajectories
     
     path = maniskill_cfg.traj_path
     group_name = f"traj_{proc_id}"  
-    data = read_hdf5_group(path, group_name)
     
-    # ori_h5_file = h5py.File(traj_path, "r")
+    # load data from zarr file
+    data = None
+    import zarr
+    data = zarr.open(path, mode='r')
+    actions_buffer = list(data['data']['action'])
+    tcp_pose_buffer = list(data['data']['state'])
+    episode_ends = list(data['meta']['episode_ends'])
+    episode_ends = [0] + episode_ends
+    episode_start = episode_ends[proc_id]
+    episode_ends = episode_ends[proc_id+1]
+    data_actions = np.array(actions_buffer[episode_start:episode_ends])
+    tcp_poses = np.array(tcp_pose_buffer[episode_start:episode_ends])
 
-    eepose_traj = get_maniskill_eepose_traj(data)
-    
-    data_actions = data['actions']
+    eepose_traj = get_maniskill_zarr_eepose_traj(data_actions, tcp_poses)
 
-    # Load associated json
-    json_path = maniskill_cfg.traj_json_path
-    json_data = load_json(json_path)
+    env_id = maniskill_cfg.env_id
 
-    env_info = json_data["env_info"]
-    env_id = env_info["env_id"]
-    ori_env_kwargs = env_info["env_kwargs"]
-
-    target_obs_mode = maniskill_cfg.obs_mode
-    target_control_mode = maniskill_cfg.target_control_mode
-    env_kwargs = ori_env_kwargs.copy()
-    env_kwargs["obs_mode"] = target_obs_mode
-    env_kwargs["control_mode"] = target_control_mode
-    # env_kwargs["bg_name"] = maniskill_cfg.bg_name
-    env_kwargs["render_mode"] = "rgb_array"  
-    env = gym.make(env_id, **env_kwargs)
+    env = gym.make(env_id, **maniskill_cfg.env_kwargs)
+    assert env is not None
     # env = gym.Wrapper(env)
-    env = RecordEpisode(
-        env,
-        "./zzskill_simple_eval",
-        save_on_reset=True,
-        save_trajectory=False,
-        save_video=True
+    env = wrappers.RecordEpisode(
+        env = env,
+        output_dir=maniskill_cfg.output_dir,
+        trajectory_name= f"{env_id}_{proc_id}",
+        video_fps=(
+            env.unwrapped.control_freq
+        ),
+        **maniskill_cfg.record_episode_kwargs
     )
 
     env.reset(seed=maniskill_cfg.env_reset_seed)
@@ -310,20 +355,25 @@ def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
         assert obs is not None
         
         observation = get_maniskill_observation(last_obs, obs, eepose_traj, t-cfg.num_steps_wait)
-        
+        gt_state_1 = tcp_poses[t - cfg.num_steps_wait][:9]
+        gt_state_2 = tcp_poses[t - cfg.num_steps_wait + 1 if t - cfg.num_steps_wait + 1 < len(tcp_poses) else t - cfg.num_steps_wait][:9]
+        gt_state = np.array([gt_state_1, gt_state_2])
+        observation['obs']['ee_pos'] = torch.tensor(np.array([gt_state]))
+
+
         action = get_dp3_action(model, observation)
         action = action['action'].detach().numpy()
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         try:
             for (i, step_action) in enumerate(action[0]):
                 last_obs = obs
                 # step_action = np.clip(step_action, -3.139, 3.139)
                 # import pdb; pdb.set_trace()
                 # obs, _, _, _, info = env.step(step_action)
-                # print("DP3 action:", step_action)
-                # print("gt action:", data_actions[t - cfg.num_steps_wait % len(data_actions)])
-                obs, _, _, _, info = env.step(data_actions[t - cfg.num_steps_wait % len(data_actions)])
-                # obs, _, _, _, info = env.step(step_action)
+                print("DP3 action:", step_action)
+                print("gt action:", data_actions[t - cfg.num_steps_wait % len(data_actions)])
+                # obs, _, _, _, info = env.step(data_actions[t - cfg.num_steps_wait % len(data_actions)])
+                obs, _, _, _, info = env.step(step_action)
                 t += 1
         except:
             break
@@ -340,15 +390,6 @@ def maniskill_run(cfg: GenerateConfig, maniskill_cfg, model, proc_id: int = 0):
         
 
 
-class ManiskillCfg:
-    obs_mode = "pointcloud"
-    traj_json_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.json"
-    traj_path = "/home/hz/code/PointCloudMatters/data/maniskill2/demos/v0/rigid_body/StackCube-v0/trajectory.rgbd.pd_ee_delta_pose.h5"
-    # target_control_mode = "pd_ee_delta_pose"
-    target_control_mode = "pd_ee_pose"
-    # bg_name = None
-    vis = False
-    env_reset_seed = 105
 
 @draccus.wrap()
 def eval_maniskill(cfg: GenerateConfig) -> None:

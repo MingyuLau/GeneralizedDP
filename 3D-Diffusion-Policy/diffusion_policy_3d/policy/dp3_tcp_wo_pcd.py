@@ -186,6 +186,7 @@ class DP3(BasePolicy):
         """
         # normalize input
         nobs = self.normalizer.normalize(obs_dict['obs'])
+        # import pdb; pdb.set_\
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
         # if not self.use_pc_color:
         #     nobs['point_cloud'] = nobs['point_cloud'][..., :3]
@@ -202,7 +203,7 @@ class DP3(BasePolicy):
         # nobs['sparse_actions'] = sparse_actions[:,:,:3]
         sparse_actions = ee_pos # [bs, 16, 7]
         nobs['sparse_actions'] = sparse_actions
-
+        
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
         T = self.horizon
@@ -255,8 +256,9 @@ class DP3(BasePolicy):
         naction_pred = nsample[...,:Da]
         # import pdb; pdb.set_trace()
         # import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         action_pred = self.normalizer['action'].unnormalize(naction_pred)
-
+        # action_pred = naction_pred
         # get action
         start = To - 1
         end = start + self.n_action_steps

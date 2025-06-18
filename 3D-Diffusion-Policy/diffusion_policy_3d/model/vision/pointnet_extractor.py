@@ -329,6 +329,7 @@ class DP3Encoder(nn.Module):
         
         if len(feat_list) == 0:
             raise ValueError("At least one input feature should be available")
+        # import pdb; pdb.set_trace()
         final_feat = torch.cat(feat_list, dim=-1)
         
         return final_feat

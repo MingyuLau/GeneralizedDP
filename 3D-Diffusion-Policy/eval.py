@@ -13,7 +13,7 @@ import torch
 import dill
 from omegaconf import OmegaConf
 import pathlib
-from train import TrainDP3Workspace
+from train_mix import TrainDP3Workspace
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
     
@@ -25,7 +25,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 )
 def main(cfg):
     workspace = TrainDP3Workspace(cfg)
-    workspace.eval()
+    workspace.eval_mine()
 
 if __name__ == "__main__":
     main()

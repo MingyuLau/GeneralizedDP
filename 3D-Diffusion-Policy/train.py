@@ -340,6 +340,131 @@ class TrainDP3Workspace:
             self.epoch += 1
             del step_log
 
+
+    def eval_mine(self):
+        cfg = copy.deepcopy(self.cfg)
+        
+        lastest_ckpt_path = self.get_checkpoint_path(tag="latest")
+        if lastest_ckpt_path.is_file():
+            cprint(f"Resuming from checkpoint {lastest_ckpt_path}", 'magenta')
+            self.load_checkpoint(path=lastest_ckpt_path)
+        
+        
+        # self.modelself.model
+        policy = self.model
+        if cfg.training.use_ema:
+            policy = self.ema_model
+        dataset: BaseDataset
+        # import pdb; pdb.set_trace()
+        dataset = hydra.utils.instantiate(cfg.task.dataset)
+
+        assert isinstance(dataset, BaseDataset) or (
+            isinstance(dataset, ConcatDataset) and 
+            all(isinstance(d, BaseDataset) for d in dataset.datasets)
+        ), f"dataset must be BaseDataset or ConcatDataset of BaseDataset, got {type(dataset)}"
+        train_dataloader = DataLoader(dataset, **cfg.dataloader)
+        normalizer = dataset.get_normalizer()
+
+        # configure validation dataset
+        val_dataset = dataset.get_validation_dataset()
+        val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+
+        self.model.set_normalizer(normalizer)
+        if cfg.training.use_ema:
+            self.ema_model.set_normalizer(normalizer)
+
+        # configure lr scheduler
+        lr_scheduler = get_scheduler(
+            cfg.training.lr_scheduler,
+            optimizer=self.optimizer,
+            num_warmup_steps=cfg.training.lr_warmup_steps,
+            num_training_steps=(
+                len(train_dataloader) * cfg.training.num_epochs) \
+                    // cfg.training.gradient_accumulate_every,
+            # pytorch assumes stepping LRScheduler every epoch
+            # however huggingface diffusers steps it every batch
+            last_epoch=self.global_step-1
+        )
+
+        # configure ema
+        ema: EMAModel = None
+        if cfg.training.use_ema:
+            ema = hydra.utils.instantiate(
+                cfg.ema,
+                model=self.ema_model)
+
+        # configure env
+        env_runner: BaseRunner
+        env_runner = hydra.utils.instantiate(
+            cfg.task.env_runner,
+            output_dir=self.output_dir)
+
+        if env_runner is not None:
+            assert isinstance(env_runner, BaseRunner)
+        cfg.logging.name = str(cfg.logging.name)
+        cprint("-----------------------------", "yellow")
+        cprint(f"[WandB] group: {cfg.logging.group}", "yellow")
+        cprint(f"[WandB] name: {cfg.logging.name}", "yellow")
+        cprint("-----------------------------", "yellow")
+        # configure logging
+        wandb_run = wandb.init(
+            dir=str(self.output_dir),
+            config=OmegaConf.to_container(cfg, resolve=True),
+            **cfg.logging
+        )
+        wandb.config.update(
+            {
+                "output_dir": self.output_dir,
+            }
+        )
+
+        # configure checkpoint
+        topk_manager = TopKCheckpointManager(
+            save_dir=os.path.join(self.output_dir, 'checkpoints'),
+            **cfg.checkpoint.topk
+        )
+
+        # device transfer
+        device = torch.device(cfg.training.device)
+        self.model.to(device)
+        if self.ema_model is not None:
+            self.ema_model.to(device)
+        optimizer_to(self.optimizer, device)
+
+        # save batch for sampling
+        train_sampling_batch = None
+
+        for local_epoch_idx in range(cfg.training.num_epochs):
+            step_log = dict()
+            # ========= train for this epoch ==========
+            train_losses = list()
+            with tqdm.tqdm(train_dataloader, desc=f"Training epoch {self.epoch}", 
+                    leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                for batch_idx, batch in enumerate(tepoch):
+                    t1 = time.time()
+                    # device transfer
+                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                    if train_sampling_batch is None:
+                        train_sampling_batch = batch
+            import pdb; pdb.set_trace()
+            with torch.no_grad():
+                # sample trajectory from training set, and evaluate difference
+                batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                obs_dict = dict()
+                obs_dict['obs'] = batch['obs']
+                obs_dict['actions'] = batch['action']
+                gt_action = batch['action']
+                
+                result = policy.predict_action(obs_dict)
+                pred_action = result['action_pred']
+                mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                step_log['train_action_mse_error'] = mse.item()
+            
+        import pdb; pdb.set_trace()
+
+        
+
+
     def eval(self):
         # load the latest checkpoint
         
@@ -355,13 +480,13 @@ class TrainDP3Workspace:
         env_runner = hydra.utils.instantiate(
             cfg.task.env_runner,
             output_dir=self.output_dir)
-        assert isinstance(env_runner, BaseRunner)
+        # self.modelself.model
         policy = self.model
         if cfg.training.use_ema:
             policy = self.ema_model
         policy.eval()
         policy.cuda()
-
+        import pdb; pdb.set_trace()
         runner_log = env_runner.run(policy)
         
       

@@ -16,7 +16,7 @@ from experiments.robot.openvla_utils import (
 from experiments.robot.dp3_utils import (
     get_dp3,
     get_dp3_action,
-    get_dp3_latent_action,
+    # get_dp3_latent_action,
 )
 
 # Initialize important constants and pretty-printing mode in NumPy.

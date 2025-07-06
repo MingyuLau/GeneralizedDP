@@ -32,7 +32,10 @@ from diffusion_policy_3d.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy_3d.model.diffusion.ema_model import EMAModel
 from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
 from diffusion_policy_3d.model.common.normalizer import LinearNormalizer, SingleFieldLinearNormalizer
+import sys
 
+sys.path.append("/mnt/hwfile/liumingyu/code/3D-Diffusion-Policy/experiments")
+from debug_utils import setup_debug
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 class TrainDP3Workspace:
@@ -118,7 +121,7 @@ class TrainDP3Workspace:
         }
         # import pdb; pdb.set_trace()
         normalizer.fit(data=combined_data, last_n_dims=1, mode='limits')
-
+        # import pdb; pdb.set_trace()
         # configure validation dataset
         # val_dataset = dataset.get_validation_dataset()
         # val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
@@ -206,6 +209,7 @@ class TrainDP3Workspace:
                 
                     # compute loss
                     t1_1 = time.time()
+                    # import pdb; pdb.set_trace()
                     raw_loss, loss_dict = self.model.compute_loss(batch)
                     loss = raw_loss / cfg.training.gradient_accumulate_every
                     loss.backward()
@@ -383,7 +387,125 @@ class TrainDP3Workspace:
         for key, value in runner_log.items():
             if isinstance(value, float):
                 cprint(f"{key}: {value:.4f}", 'magenta')
+    
+    def eval_mine(self):
+        cfg = copy.deepcopy(self.cfg)
         
+        lastest_ckpt_path = self.get_checkpoint_path(tag="latest")
+        if lastest_ckpt_path.is_file():
+            cprint(f"Resuming from checkpoint {lastest_ckpt_path}", 'magenta')
+            self.load_checkpoint(path=lastest_ckpt_path)
+        
+        
+        # self.modelself.model
+        policy = self.model
+        if cfg.training.use_ema:
+            policy = self.ema_model
+        dataset: BaseDataset
+        # import pdb; pdb.set_trace()
+        dataset = hydra.utils.instantiate(cfg.task.dataset)
+
+        assert isinstance(dataset, BaseDataset) or (
+            isinstance(dataset, ConcatDataset) and 
+            all(isinstance(d, BaseDataset) for d in dataset.datasets)
+        ), f"dataset must be BaseDataset or ConcatDataset of BaseDataset, got {type(dataset)}"
+        train_dataloader = DataLoader(dataset, **cfg.dataloader)
+        
+        datas = [d.get_data() for d in dataset.datasets]
+        # import pdb; pdb.set_trace()
+        normalizer = LinearNormalizer()
+        combined_data = {
+            key: np.concatenate([d[key] for d in datas], axis=0)
+            for key in datas[0].keys()  # 使用第一个字典的键作为参考
+        }
+        # import pdb; pdb.set_trace()
+        normalizer.fit(data=combined_data, last_n_dims=1, mode='limits')
+
+        # configure validation dataset
+        # val_dataset = dataset.get_validation_dataset()
+        # val_dataloader = DataLoader(val_dataset, **cfg.val_dataloader)
+
+        self.model.set_normalizer(normalizer)
+        if cfg.training.use_ema:
+            self.ema_model.set_normalizer(normalizer)
+
+
+    
+        # device transfer
+        # import pdb; pdb.set_trace()
+        device = torch.device('cpu')
+        # self.model.to(device)
+
+        # save batch for sampling
+        train_sampling_batch = None
+
+        for local_epoch_idx in range(cfg.training.num_epochs):
+            step_log = dict()
+            # ========= train for this epoch ==========
+            train_losses = list()
+            with tqdm.tqdm(train_dataloader, desc=f"Training epoch {self.epoch}", 
+                    leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
+                for batch_idx, batch in enumerate(tepoch):
+                    t1 = time.time()
+                    # device transfer
+                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                    if train_sampling_batch is None:
+                        train_sampling_batch = batch
+            
+            with torch.no_grad():
+                # sample trajectory from training set, and evaluate difference
+                
+                batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                obs_dict = dict()
+                obs_dict['obs'] = batch['obs']
+                obs_dict['actions'] = batch['action']
+                # import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
+    #             obs_dict['obs']['agent_pos'] = torch.tensor([[[-5.5517e-01,  9.1816e-01,  1.8452e-02, -1.8181e+00, -1.1989e-03,
+    #        7.0522e-01, -1.7702e+00,  4.0000e-02,  3.9995e-02],
+    #      [-5.5540e-01,  9.1858e-01,  1.8100e-02, -1.8172e+00, -1.1526e-03,
+    #        6.9933e-01, -1.7761e+00,  3.9999e-02,  3.9996e-02]]],
+    #    dtype=torch.float64)
+    #             obs_dict['obs']['ee_pos'] = torch.tensor([[[-1.2194e-03,  3.3036e-02,  1.9132e-01, -3.1243e+00,  2.5454e-02,
+    #                                             3.1255e+00,  1.0000e+00],
+    #                                             [-1.2194e-03,  3.3036e-02,  1.9132e-01, -3.1243e+00,  2.5455e-02,
+    #                                             3.1255e+00,  1.0000e+00],
+    #                                             [-1.2473e-03,  3.3019e-02,  1.9129e-01, -3.1243e+00,  2.5486e-02,
+    #                                             3.1255e+00,  1.0000e+00],
+    #                                             [-1.4137e-03,  3.2891e-02,  1.9112e-01, -3.1243e+00,  2.5558e-02,
+    #                                             3.1263e+00,  1.0000e+00],
+    #                                             [-1.7820e-03,  3.2586e-02,  1.9070e-01, -3.1244e+00,  2.5569e-02,
+    #                                             3.1279e+00,  1.0000e+00],
+    #                                             [-2.3895e-03,  3.2058e-02,  1.8999e-01, -3.1244e+00,  2.5490e-02,
+    #                                             3.1305e+00,  1.0000e+00],
+    #                                             [-3.2600e-03,  3.1284e-02,  1.8895e-01, -3.1245e+00,  2.5311e-02,
+    #                                             3.1341e+00,  1.0000e+00],
+    #                                             [-4.4094e-03,  3.0254e-02,  1.8758e-01, -3.1247e+00,  2.5029e-02,
+    #                                             3.1389e+00,  1.0000e+00],
+    #                                             [-5.8493e-03,  2.8966e-02,  1.8586e-01, -3.1248e+00,  2.4651e-02,
+    #                                             -3.1383e+00,  1.0000e+00],
+    #                                             [-7.5899e-03,  2.7423e-02,  1.8379e-01, -3.1251e+00,  2.4183e-02,
+    #                                             -3.1312e+00,  1.0000e+00],
+    #                                             [-9.6430e-03,  2.5629e-02,  1.8137e-01, -3.1253e+00,  2.3627e-02,
+    #                                             -3.1228e+00,  1.0000e+00],
+    #                                             [-1.2019e-02,  2.3589e-02,  1.7858e-01, -3.1256e+00,  2.2987e-02,
+    #                                             -3.1132e+00,  1.0000e+00],
+    #                                             [-1.4729e-02,  2.1309e-02,  1.7544e-01, -3.1260e+00,  2.2266e-02,
+    #                                             -3.1023e+00,  1.0000e+00],
+    #                                             [-1.7790e-02,  1.8795e-02,  1.7192e-01, -3.1264e+00,  2.1463e-02,
+    #                                             -3.0901e+00,  1.0000e+00],
+    #                                             [-2.1216e-02,  1.6054e-02,  1.6803e-01, -3.1268e+00,  2.0582e-02,
+    #                                             -3.0766e+00,  1.0000e+00],
+    #                                             [-2.5026e-02,  1.3095e-02,  1.6375e-01, -3.1274e+00,  1.9622e-02,
+    #                                             -3.0618e+00,  1.0000e+00]]], dtype=torch.float64)
+                gt_action = batch['action']
+                # import pdb; pdb.set_trace()
+                
+                result = policy.predict_action(obs_dict)
+                pred_action = result['action_pred']
+                import pdb; pdb.set_trace()
+                mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                step_log['train_action_mse_error'] = mse.item()
     @property
     def output_dir(self):
         output_dir = self._output_dir
@@ -528,4 +650,6 @@ def main(cfg):
     workspace.run()
 
 if __name__ == "__main__":
+    # setup_debug(True)
+
     main()

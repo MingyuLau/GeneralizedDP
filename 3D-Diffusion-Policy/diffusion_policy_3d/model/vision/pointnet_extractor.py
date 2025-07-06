@@ -216,6 +216,7 @@ class DP3Encoder(nn.Module):
         self.state_key = 'agent_pos'
         self.point_cloud_key = 'point_cloud'
         self.rgb_image_key = 'image'
+        # import pdb; pdb.set_trace()
         if self.point_cloud_key in observation_space:
             self.n_output_channels = out_channel
         else:
@@ -234,6 +235,7 @@ class DP3Encoder(nn.Module):
             self.state_shape = None
         # import pdb; pdb.set_trace()
         self.action_shape = observation_space[self.action_key]
+
         if self.use_imagined_robot:
             self.imagination_shape = observation_space[self.imagination_key]
         else:
@@ -311,6 +313,8 @@ class DP3Encoder(nn.Module):
         
             # points = torch.transpose(points, 1, 2)   # B * 3 * N
             # points: B * 3 * (N + sum(Ni))
+            # import pdb; pdb.set_trace()
+            points = points[:, :, 3:]
             pn_feat = self.extractor(points)    # B * out_channel [bs, 1024, 3] -> [bs, 64]
             feat_list.append(pn_feat)
         

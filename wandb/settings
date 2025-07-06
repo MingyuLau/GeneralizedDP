@@ -1,0 +1,5 @@
+[default]
+entity = llmy
+project = dp3
+base_url = https://api.wandb.ai
+

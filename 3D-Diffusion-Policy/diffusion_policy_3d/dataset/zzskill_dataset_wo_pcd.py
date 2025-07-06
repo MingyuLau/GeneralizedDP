@@ -131,25 +131,34 @@ class ZzskillDataset(BaseDataset):
         data = {
             'action': self.replay_buffer['action'],
             'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
-            # 'point_cloud': self.replay_buffer['point_cloud'],
+            'ee_pos': self.replay_buffer['state'][..., -7:],
+            'point_cloud': self.replay_buffer['point_cloud'],
         }
         # data = {
         #     'action': self.replay_buffer['action'],
         #     'agent_pos': self.replay_buffer['states'][...,:],
         #     'point_cloud': self.replay_buffer['pointclouds'],
         # }
+
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        import pdb; pdb.set_trace()
         # normalizer['point_cloud'] = SingleFieldLinearNormalizer.create_identity()
         return normalizer
     
     def get_data(self, mode='limits', **kwargs):
+
+        actions = self.replay_buffer['action']
+        tcp_poses = self.replay_buffer['state'][..., -7:]
+
+        ee_pos = convert_action_state(tcp_poses, actions)
         data = {
             'action': self.replay_buffer['action'],
             'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
-            'ee_pos': self.replay_buffer['state'][..., -7:],  # 取末尾7维 (ee_pos)
-            # 'point_cloud': self.replay_buffer['point_cloud'],
+            'ee_pos': ee_pos,  # 取末尾7维 (ee_pos)
+            'point_cloud': self.replay_buffer['point_cloud'],
         }
+        # import pdb ; pdb.set_trace()
         return data
 
     def __len__(self) -> int:
@@ -157,17 +166,17 @@ class ZzskillDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
-        # point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
 
         actions = sample['action']
         tcp_poses = sample['state'][..., -7:]
-        
-        ee_pos = convert_action_state(tcp_poses, actions)  # (T, 7)
+        # import pdb; pdb.set_trace()
+        ee_pos = convert_action_state(tcp_poses, actions)  # (T, 7)   abs:xyz  delta:ypt 
         # ee_pos = convert_action_state_quat(tcp_poses, actions)  # (T, 8)
 
         data = {
             'obs': {
-                # 'point_cloud': point_cloud, # T, 1024, 6
+                'point_cloud': point_cloud, # T, 1024, 6
                 'agent_pos': agent_pos, # T, D_pos
                 'ee_pos': ee_pos,
             },

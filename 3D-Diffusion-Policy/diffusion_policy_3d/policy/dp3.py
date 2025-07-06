@@ -242,7 +242,7 @@ class DP3(BasePolicy):
         # import pdb; pdb.set_trace()
         if self.obs_as_global_cond:
             # condition through global feature
-            # import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
             this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
             if "cross_attention" in self.condition_type:

@@ -150,6 +150,7 @@ class ZzskillDataset(BaseDataset):
             'ee_pos': self.replay_buffer['state'][..., -7:],  # 取末尾7维 (ee_pos)
             'point_cloud': self.replay_buffer['point_cloud'],
         }
+        import pdb; pdb.set_trace()
         return data
 
     def __len__(self) -> int:

@@ -157,7 +157,6 @@ class DP3(BasePolicy):
         # set step values
         scheduler.set_timesteps(self.num_inference_steps)
 
-
         for t in scheduler.timesteps:
             # 1. apply conditioning
             trajectory[condition_mask] = condition_data[condition_mask]

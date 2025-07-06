@@ -148,6 +148,7 @@ class ManiskillDataset(BaseDataset):
             'agent_pos': self.replay_buffer['state'][..., :9],  # 只取前9维 (qpos)
             'point_cloud': self.replay_buffer['point_cloud'],
         }
+        
         return data
 
     def __len__(self) -> int:

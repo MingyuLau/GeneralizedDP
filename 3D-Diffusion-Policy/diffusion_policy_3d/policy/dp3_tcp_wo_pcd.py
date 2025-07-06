@@ -156,7 +156,7 @@ class DP3(BasePolicy):
 
         # set step values
         scheduler.set_timesteps(self.num_inference_steps)
-
+        # import pdb; pdb.set_trace()
 
         for t in scheduler.timesteps:
             # 1. apply conditioning
@@ -195,13 +195,23 @@ class DP3(BasePolicy):
         # batch_size = nactions.shape[0]
         # horizon = nactions.shape[1]
 ############
+        
         ee_pos = nobs['ee_pos']
-        sparse_stride = 4
+        
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
         # sparse_actions = nactions # [bs, 16, 7]
         # nobs['sparse_actions'] = sparse_actions[:,:,:3]
+        # import pdb; pdb.set_trace()
+        
         sparse_actions = ee_pos # [bs, 16, 7]
-        nobs['sparse_actions'] = sparse_actions
+        
+        last_action = sparse_actions[:, -1:, :]
+        noise = torch.normal(0, 0.1, last_action.shape, device=last_action.device)
+        noisy_last_action = last_action + noise
+        # noisy_last_action = last_action
+
+        last_action_expanded = noisy_last_action.repeat(1, 2, 1)
+        nobs['sparse_actions'] = last_action_expanded
 
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
@@ -223,6 +233,7 @@ class DP3(BasePolicy):
             # import pdb; pdb.set_trace()
             this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:]))
             nobs_features = self.obs_encoder(this_nobs)
+            # import pdb; pdb.set_trace()
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
                 global_cond = nobs_features.reshape(B, self.n_obs_steps, -1)
@@ -310,9 +321,11 @@ class DP3(BasePolicy):
         # normalize input
         # import pdb; pdb.set_trace()
         nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
+        # eepos = self.normalizer['ee_pos'].normalize(batch['obs']['ee_pos'][0][:1,:].squeeze(0))
+        # import pdb; pdb.set_trace()
         nactions = self.normalizer['action'].normalize(batch['action'])
         ee_pos = nobs['ee_pos']
-        # import pdb; pdb.set_trace()
+        
         # point = nobs['point_cloud'][0][0].cpu().numpy()
 
         # self.save_point_cloud_to_ply(nobs['point_cloud'][0][0].cpu().numpy(), '/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/point_cloud.ply')
@@ -323,33 +336,38 @@ class DP3(BasePolicy):
         
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
-    ############
+        ############
         sparse_stride = 4
         # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
         sparse_actions = nactions # [bs, 16, 7]
-
+        
         sparse_actions = ee_pos # [bs, 16, 7]
-        nobs['sparse_actions'] = sparse_actions
-            # import pdb; pdb.set_trace()
+        
+        last_action = sparse_actions[:, -1:, :]
+        noise = torch.normal(0, 0.1, last_action.shape, device=last_action.device)
+        noisy_last_action = last_action + noise
+        # noisy_last_action = last_action
+        last_action_expanded = noisy_last_action.repeat(1, 2, 1)
+        nobs['sparse_actions'] = last_action_expanded
+
         # import pdb; pdb.set_trace()
-        # import pdb; pdb.set_trace()
-###########
+        ###########
         # handle different ways of passing observation
         local_cond = None
         global_cond = None
         trajectory = nactions
         cond_data = trajectory # [128,16,7]
         
+        # import pdb; pdb.set_trace()
         
-        
-        
+        # nobs['sparse_actions'] = sparse_actions
         if self.obs_as_global_cond:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, 
                 lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))  # [bs*2,1024,3] [bs*2,7]
             # import pdb; pdb.set_trace()
             nobs_features = self.obs_encoder(this_nobs) # [bs*2,64*3]
-            # import pdb; pdb.set_trace()
+            
             if "cross_attention" in self.condition_type:
                 # treat as a sequence
                 

@@ -64,6 +64,10 @@ class TrainDP3Workspace:
         # configure model
         self.model: DP3 = hydra.utils.instantiate(cfg.policy)
 
+        # 只在主进程输出模型信息
+        if self.accelerator.is_main_process:
+            print(f"Model created with {sum(p.numel() for p in self.model.parameters())/1e6:.1f}M parameters")
+
         self.ema_model: DP3 = None
         if cfg.training.use_ema:
             try:
@@ -71,7 +75,7 @@ class TrainDP3Workspace:
             except: # minkowski engine could not be copied. recreate it
                 self.ema_model = hydra.utils.instantiate(cfg.policy)
 
-        # import pdb; pdb.set_trace()
+        
         # configure training state
         self.optimizer = hydra.utils.instantiate(
             cfg.optimizer, params=self.model.parameters())
@@ -111,9 +115,8 @@ class TrainDP3Workspace:
 
         # configure dataset
         dataset: BaseDataset
-        # import pdb; pdb.set_trace()
+        
         dataset = hydra.utils.instantiate(cfg.task.dataset) 
-
         assert isinstance(dataset, BaseDataset) or (
             isinstance(dataset, ConcatDataset) and 
             all(isinstance(d, BaseDataset) for d in dataset.datasets)
@@ -121,13 +124,13 @@ class TrainDP3Workspace:
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
         
         datas = [d.get_data() for d in dataset.datasets]
-        # import pdb; pdb.set_trace()
+        
         normalizer = LinearNormalizer()
         combined_data = {
             key: np.concatenate([d[key] for d in datas], axis=0)
             for key in datas[0].keys()  # 使用第一个字典的键作为参考
         }
-        # import pdb; pdb.set_trace()
+        
         normalizer.fit(data=combined_data, last_n_dims=1, mode='limits')
         # import pdb; pdb.set_trace()
         # configure validation dataset
@@ -167,23 +170,26 @@ class TrainDP3Workspace:
 
         if env_runner is not None:
             assert isinstance(env_runner, BaseRunner)
-        cfg.logging.name = str(cfg.logging.name)
-        cprint("-----------------------------", "yellow")
-        cprint(f"[WandB] group: {cfg.logging.group}", "yellow")
-        cprint(f"[WandB] name: {cfg.logging.name}", "yellow")
-        cprint("-----------------------------", "yellow")
-        # configure logging
-        wandb_run = wandb.init(
-            dir=str(self.output_dir),
-            config=OmegaConf.to_container(cfg, resolve=True),
-            **cfg.logging
-        )
-        wandb.config.update(
-            {
-                "output_dir": self.output_dir,
-            }
-        )
 
+        cfg.logging.name = str(cfg.logging.name)
+        # configure logging
+        if self.accelerator.is_main_process:
+            wandb_run = wandb.init(
+                dir=str(self.output_dir),
+                config=OmegaConf.to_container(cfg, resolve=True),
+                **cfg.logging
+            )
+            cprint("-----------------------------", "yellow")
+            cprint(f"[WandB] group: {cfg.logging.group}", "yellow")
+            cprint(f"[WandB] name: {cfg.logging.name}", "yellow")
+            cprint("-----------------------------", "yellow")
+            wandb.config.update(
+                {
+                    "output_dir": self.output_dir,
+                }
+            )
+        else:
+            wandb_run = None
         # configure checkpoint
         topk_manager = TopKCheckpointManager(
             save_dir=os.path.join(self.output_dir, 'checkpoints'),
@@ -440,6 +446,7 @@ class TrainDP3Workspace:
             all(isinstance(d, BaseDataset) for d in dataset.datasets)
         ), f"dataset must be BaseDataset or ConcatDataset of BaseDataset, got {type(dataset)}"
         train_dataloader = DataLoader(dataset, **cfg.dataloader)
+        
         
         datas = [d.get_data() for d in dataset.datasets]
         # import pdb; pdb.set_trace()

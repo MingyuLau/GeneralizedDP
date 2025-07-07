@@ -6,7 +6,7 @@ import copy
 
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
-
+from accelerate import Accelerator
 
 def create_mlp(
         input_dim: int,
@@ -72,8 +72,15 @@ class PointNetEncoderXYZRGB(nn.Module):
         """
         super().__init__()
         block_channel = [64, 128, 256, 512]
-        cprint("pointnet use_layernorm: {}".format(use_layernorm), 'cyan')
-        cprint("pointnet use_final_norm: {}".format(final_norm), 'cyan')
+
+        try:
+            accelerator = Accelerator()
+            is_main_process = accelerator.is_main_process
+        except:
+            is_main_process = True
+        if is_main_process:
+            cprint("pointnet use_layernorm: {}".format(use_layernorm), 'cyan')
+            cprint("pointnet use_final_norm: {}".format(final_norm), 'cyan')
         
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, block_channel[0]),
@@ -128,10 +135,16 @@ class PointNetEncoderXYZ(nn.Module):
         """
         super().__init__()
         block_channel = [64, 128, 256]
-        cprint("[PointNetEncoderXYZ] use_layernorm: {}".format(use_layernorm), 'cyan')
-        cprint("[PointNetEncoderXYZ] use_final_norm: {}".format(final_norm), 'cyan')
+        try:
+            accelerator = Accelerator()
+            is_main_process = accelerator.is_main_process
+        except:
+            is_main_process = True
+        if is_main_process:
+            cprint("[PointNetEncoderXYZ] use_layernorm: {}".format(use_layernorm), 'cyan')
+            cprint("[PointNetEncoderXYZ] use_final_norm: {}".format(final_norm), 'cyan')
         
-        assert in_channels == 3, cprint(f"PointNetEncoderXYZ only supports 3 channels, but got {in_channels}", "red")
+            assert in_channels == 3, cprint(f"PointNetEncoderXYZ only supports 3 channels, but got {in_channels}", "red")
        
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, block_channel[0]),
@@ -159,7 +172,8 @@ class PointNetEncoderXYZ(nn.Module):
         self.use_projection = use_projection
         if not use_projection:
             self.final_projection = nn.Identity()
-            cprint("[PointNetEncoderXYZ] not use projection", "yellow")
+            if is_main_process:
+                cprint("[PointNetEncoderXYZ] not use projection", "yellow")
             
         VIS_WITH_GRAD_CAM = False
         if VIS_WITH_GRAD_CAM:
@@ -241,6 +255,11 @@ class DP3Encoder(nn.Module):
         else:
             self.imagination_shape = None
             
+        try:
+            accelerator = Accelerator()
+            is_main_process = accelerator.is_main_process
+        except:
+            is_main_process = True
         if self.use_point_cloud:
             self.point_cloud_shape = observation_space[self.point_cloud_key]
             self.use_pc_color = use_pc_color
@@ -254,15 +273,17 @@ class DP3Encoder(nn.Module):
                     self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
             else:
                 raise NotImplementedError(f"pointnet_type: {pointnet_type}")
-            cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
+            if is_main_process:
+                cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
         else:
             self.extractor = None
-            cprint(f"[DP3Encoder] point cloud key {self.point_cloud_key} not found, skipping point cloud features", "yellow")   
+            if is_main_process:
+                cprint(f"[DP3Encoder] point cloud key {self.point_cloud_key} not found, skipping point cloud features", "yellow")   
 
         
-        
-        cprint(f"[DP3Encoder] state shape: {self.state_shape}", "yellow")
-        cprint(f"[DP3Encoder] imagination point shape: {self.imagination_shape}", "yellow")
+        if is_main_process:
+            cprint(f"[DP3Encoder] state shape: {self.state_shape}", "yellow")
+            cprint(f"[DP3Encoder] imagination point shape: {self.imagination_shape}", "yellow")
         
 
         

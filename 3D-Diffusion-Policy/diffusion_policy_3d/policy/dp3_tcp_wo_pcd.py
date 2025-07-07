@@ -83,12 +83,19 @@ class DP3(BasePolicy):
             else:
                 global_cond_dim = obs_feature_dim * n_obs_steps
                 # global_cond_dim = obs_feature_dim * 3
-        
+        try:
+            from accelerate import Accelerator
+            accelerator = Accelerator()
+            is_main_process = accelerator.is_main_process
+        except:
+            # 如果没有 accelerator，默认输出
+            is_main_process = True
 
         self.use_pc_color = use_pc_color
         self.pointnet_type = pointnet_type
-        cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
-        cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
+        if is_main_process:
+            cprint(f"[DiffusionUnetHybridPointcloudPolicy] use_pc_color: {self.use_pc_color}", "yellow")
+            cprint(f"[DiffusionUnetHybridPointcloudPolicy] pointnet_type: {self.pointnet_type}", "yellow")
 
 
         # import pdb; pdb.set_trace()
@@ -133,8 +140,8 @@ class DP3(BasePolicy):
             num_inference_steps = noise_scheduler.config.num_train_timesteps
         self.num_inference_steps = num_inference_steps
 
-
-        print_params(self)
+        if is_main_process:
+            print_params(self)
         
     # ========= inference  ============
     def conditional_sample(self, 

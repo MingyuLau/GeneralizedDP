@@ -1,8 +1,10 @@
 import imp
+from operator import is_
 from typing import Union, Dict, Optional
 import os
 import math
 import numbers
+from networkx import is_matching
 import zarr
 import numcodecs
 import numpy as np
@@ -114,6 +116,8 @@ class ReplayBuffer:
             assert(value.shape[0] == root['meta']['episode_ends'][-1])
             
         self.root = root
+
+
     
     # ============= create constructors ===============
     @classmethod
@@ -244,9 +248,17 @@ class ReplayBuffer:
                         chunks=cks, compressor=cpr, if_exists=if_exists
                     )
         buffer = cls(root=root)
-        for key, value in buffer.items():
-            cprint(f'Replay Buffer: {key}, shape {value.shape}, dtype {value.dtype}, range {value.min():.2f}~{value.max():.2f}', 'green')
-        cprint("--------------------------", 'green')
+        try:
+            from accelerate import Accelerator
+            accelerator = Accelerator()
+            is_main_process = accelerator.is_main_process
+        except:
+            # 如果没有 accelerator，默认输出
+            is_main_process = True
+        if is_main_process:
+            for key, value in buffer.items():
+                cprint(f'Replay Buffer: {key}, shape {value.shape}, dtype {value.dtype}, range {value.min():.2f}~{value.max():.2f}', 'green')
+            cprint("--------------------------", 'green')
         return buffer
     
     @classmethod

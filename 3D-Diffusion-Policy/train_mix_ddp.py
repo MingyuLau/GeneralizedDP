@@ -8,6 +8,7 @@ if __name__ == "__main__":
     os.chdir(ROOT_DIR)
 
 import os
+import accelerate
 import hydra
 import torch
 import dill
@@ -34,6 +35,10 @@ from diffusion_policy_3d.model.common.lr_scheduler import get_scheduler
 from diffusion_policy_3d.model.common.normalizer import LinearNormalizer, SingleFieldLinearNormalizer
 import sys
 
+## Accelerate
+from accelerate import Accelerator
+
+
 sys.path.append("/mnt/hwfile/liumingyu/code/3D-Diffusion-Policy/experiments")
 from debug_utils import setup_debug
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -47,6 +52,9 @@ class TrainDP3Workspace:
         self._output_dir = output_dir
         self._saving_thread = None
         
+        # 初始化 accelerator
+        self.accelerator = Accelerator()
+
         # set seed
         seed = cfg.training.seed
         torch.manual_seed(seed)
@@ -143,6 +151,7 @@ class TrainDP3Workspace:
             last_epoch=self.global_step-1
         )
 
+
         # configure ema
         ema: EMAModel = None
         if cfg.training.use_ema:
@@ -181,12 +190,18 @@ class TrainDP3Workspace:
             **cfg.checkpoint.topk
         )
 
+        # 使用 accelerator 准备模型、优化器和数据加载器
+        self.model, self.optimizer, train_dataloader = self.accelerator.prepare(
+            self.model, self.optimizer, train_dataloader
+        )
+        if cfg.training.use_ema:
+            self.ema_model = self.accelerator.prepare(self.ema_model)
         # device transfer
-        device = torch.device(cfg.training.device)
-        self.model.to(device)
-        if self.ema_model is not None:
-            self.ema_model.to(device)
-        optimizer_to(self.optimizer, device)
+        # device = torch.device(cfg.training.device)
+        # self.model.to(device)
+        # if self.ema_model is not None:
+        #     self.ema_model.to(device)
+        # optimizer_to(self.optimizer, device)
 
         # save batch for sampling
         train_sampling_batch = None
@@ -203,16 +218,18 @@ class TrainDP3Workspace:
                 for batch_idx, batch in enumerate(tepoch):
                     t1 = time.time()
                     # device transfer
-                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                    # batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                     if train_sampling_batch is None:
                         train_sampling_batch = batch
                 
                     # compute loss
                     t1_1 = time.time()
                     # import pdb; pdb.set_trace()
-                    raw_loss, loss_dict = self.model.compute_loss(batch)
+                    raw_loss, loss_dict = self.model.module.compute_loss(batch)
                     loss = raw_loss / cfg.training.gradient_accumulate_every
-                    loss.backward()
+
+                    self.accelerator.backward(loss)
+                    # loss.backward()
                     
                     t1_2 = time.time()
 
@@ -224,34 +241,42 @@ class TrainDP3Workspace:
                     t1_3 = time.time()
                     # update ema
                     if cfg.training.use_ema:
-                        ema.step(self.model)
+                        # 只在主进程中更新 EMA，或者确保所有进程同步更新
+                        if self.accelerator.is_main_process:
+                            # 获取未包装的模型来更新 EMA
+                            unwrapped_model = self.accelerator.unwrap_model(self.model)
+                            ema.step(unwrapped_model)
+                        else:
+                            # 非主进程也需要同步 EMA 状态
+                            self.accelerator.wait_for_everyone()
                     t1_4 = time.time()
                     # logging
-                    raw_loss_cpu = raw_loss.item()
-                    tepoch.set_postfix(loss=raw_loss_cpu, refresh=False)
-                    train_losses.append(raw_loss_cpu)
-                    step_log = {
-                        'train_loss': raw_loss_cpu,
-                        'global_step': self.global_step,
-                        'epoch': self.epoch,
-                        'lr': lr_scheduler.get_last_lr()[0]
-                    }
-                    t1_5 = time.time()
-                    step_log.update(loss_dict)
-                    t2 = time.time()
-                    
-                    if verbose:
-                        print(f"total one step time: {t2-t1:.3f}")
-                        print(f" compute loss time: {t1_2-t1_1:.3f}")
-                        print(f" step optimizer time: {t1_3-t1_2:.3f}")
-                        print(f" update ema time: {t1_4-t1_3:.3f}")
-                        print(f" logging time: {t1_5-t1_4:.3f}")
+                    if self.accelerator.is_main_process:
+                        raw_loss_cpu = raw_loss.item()
+                        tepoch.set_postfix(loss=raw_loss_cpu, refresh=False)
+                        train_losses.append(raw_loss_cpu)
+                        step_log = {
+                            'train_loss': raw_loss_cpu,
+                            'global_step': self.global_step,
+                            'epoch': self.epoch,
+                            'lr': lr_scheduler.get_last_lr()[0]
+                        }
+                        t1_5 = time.time()
+                        step_log.update(loss_dict)
+                        t2 = time.time()
+                        
+                        if verbose:
+                            print(f"total one step time: {t2-t1:.3f}")
+                            print(f" compute loss time: {t1_2-t1_1:.3f}")
+                            print(f" step optimizer time: {t1_3-t1_2:.3f}")
+                            print(f" update ema time: {t1_4-t1_3:.3f}")
+                            print(f" logging time: {t1_5-t1_4:.3f}")
 
-                    is_last_batch = (batch_idx == (len(train_dataloader)-1))
-                    if not is_last_batch:
-                        # log of last step is combined with validation and rollout
-                        wandb_run.log(step_log, step=self.global_step)
-                        self.global_step += 1
+                        is_last_batch = (batch_idx == (len(train_dataloader)-1))
+                        if not is_last_batch:
+                            # log of last step is combined with validation and rollout
+                            wandb_run.log(step_log, step=self.global_step)
+                    self.global_step += 1
 
                     if (cfg.training.max_train_steps is not None) \
                         and batch_idx >= (cfg.training.max_train_steps-1):
@@ -259,13 +284,17 @@ class TrainDP3Workspace:
 
             # at the end of each epoch
             # replace train_loss with epoch average
-            train_loss = np.mean(train_losses)
-            step_log['train_loss'] = train_loss
+            if self.accelerator.is_main_process:
+                train_loss = np.mean(train_losses)
+                step_log['train_loss'] = train_loss
 
             # ========= eval for this epoch ==========
             policy = self.model
             if cfg.training.use_ema:
                 policy = self.ema_model
+
+            # 同步所有进程，确保模型状态一致
+            self.accelerator.wait_for_everyone()
             # policy.eval()
 
             # # run rollout
@@ -302,52 +331,53 @@ class TrainDP3Workspace:
 
             # run diffusion sampling on a training batch
             # import pdb; pdb.set_trace()
-            if (self.epoch % cfg.training.sample_every) == 0:
-                with torch.no_grad():
-                    # sample trajectory from training set, and evaluate difference
-                    batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
-    
-                    obs_dict = dict()
-                    obs_dict['obs'] = batch['obs']
-                    obs_dict['actions'] = batch['action']
-                    gt_action = batch['action']
-                    # import pdb; pdb.set_trace()
-                    result = policy.predict_action(obs_dict)
-                    # import pdb; pdb.set_trace()
-                    pred_action = result['action_pred']
-                    mse = torch.nn.functional.mse_loss(pred_action, gt_action)
-                    step_log['train_action_mse_error'] = mse.item()
-                    del batch
-                    del obs_dict
-                    del gt_action
-                    del result
-                    del pred_action
-                    del mse
+            if self.accelerator.is_main_process:
+                if (self.epoch % cfg.training.sample_every) == 0:
+                    with torch.no_grad():
+                        # sample trajectory from training set, and evaluate difference
+                        # batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
+        
+                        obs_dict = dict()
+                        obs_dict['obs'] = batch['obs']
+                        obs_dict['actions'] = batch['action']
+                        gt_action = batch['action']
+                        # import pdb; pdb.set_trace()
+                        result = policy.predict_action(obs_dict)
+                        # import pdb; pdb.set_trace()
+                        pred_action = result['action_pred']
+                        mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                        step_log['train_action_mse_error'] = mse.item()
+                        del batch
+                        del obs_dict
+                        del gt_action
+                        del result
+                        del pred_action
+                        del mse
 
-            if env_runner is None:
-                step_log['test_mean_score'] = - train_loss
-                
-            # checkpoint
-            if (self.epoch % cfg.training.checkpoint_every) == 0 and cfg.checkpoint.save_ckpt:
-                # checkpointing
-                if cfg.checkpoint.save_last_ckpt:
-                    self.save_checkpoint()
-                if cfg.checkpoint.save_last_snapshot:
-                    self.save_snapshot()
+                if env_runner is None:
+                    step_log['test_mean_score'] = - train_loss
+                    
+                # checkpoint
+                if (self.epoch % cfg.training.checkpoint_every) == 0 and cfg.checkpoint.save_ckpt:
+                    # checkpointing
+                    if cfg.checkpoint.save_last_ckpt:
+                        self.save_checkpoint()
+                    if cfg.checkpoint.save_last_snapshot:
+                        self.save_snapshot()
 
-                # sanitize metric names
-                metric_dict = dict()
-                for key, value in step_log.items():
-                    new_key = key.replace('/', '_')
-                    metric_dict[new_key] = value
-                
-                # We can't copy the last checkpoint here
-                # since save_checkpoint uses threads.
-                # therefore at this point the file might have been empty!
-                topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
+                    # sanitize metric names
+                    metric_dict = dict()
+                    for key, value in step_log.items():
+                        new_key = key.replace('/', '_')
+                        metric_dict[new_key] = value
+                    
+                    # We can't copy the last checkpoint here
+                    # since save_checkpoint uses threads.
+                    # therefore at this point the file might have been empty!
+                    topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
 
-                if topk_ckpt_path is not None:
-                    self.save_checkpoint(path=topk_ckpt_path)
+                    if topk_ckpt_path is not None:
+                        self.save_checkpoint(path=topk_ckpt_path)
             # ========= eval end for this epoch ==========
             policy.train()
 
@@ -448,14 +478,15 @@ class TrainDP3Workspace:
                 for batch_idx, batch in enumerate(tepoch):
                     t1 = time.time()
                     # device transfer
-                    batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                    # batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+
                     if train_sampling_batch is None:
                         train_sampling_batch = batch
             
             with torch.no_grad():
                 # sample trajectory from training set, and evaluate difference
                 
-                batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
+                # batch = dict_apply(train_sampling_batch, lambda x: x.to(device, non_blocking=True))
                 obs_dict = dict()
                 obs_dict['obs'] = batch['obs']
                 obs_dict['actions'] = batch['action']
@@ -480,6 +511,10 @@ class TrainDP3Workspace:
             exclude_keys=None,
             include_keys=None,
             use_thread=False):
+        # 只在主进程中保存检查点
+        if not self.accelerator.is_main_process:
+            return None
+            
         if path is None:
             path = pathlib.Path(self.output_dir).joinpath('checkpoints', f'{tag}.ckpt')
         else:
@@ -500,12 +535,28 @@ class TrainDP3Workspace:
             if hasattr(value, 'state_dict') and hasattr(value, 'load_state_dict'):
                 # modules, optimizers and samplers etc
                 if key not in exclude_keys:
-                    if use_thread:
-                        payload['state_dicts'][key] = _copy_to_cpu(value.state_dict())
+                    # 对于模型，获取未包装的原始模型
+                    if key == 'model':
+                        unwrapped_model = self.accelerator.unwrap_model(value)
+                        if use_thread:
+                            payload['state_dicts'][key] = _copy_to_cpu(unwrapped_model.state_dict())
+                        else:
+                            payload['state_dicts'][key] = unwrapped_model.state_dict()
+                    elif key == 'ema_model' and hasattr(self, 'ema_model'):
+                        unwrapped_ema = self.accelerator.unwrap_model(value)
+                        if use_thread:
+                            payload['state_dicts'][key] = _copy_to_cpu(unwrapped_ema.state_dict())
+                        else:
+                            payload['state_dicts'][key] = unwrapped_ema.state_dict()
                     else:
-                        payload['state_dicts'][key] = value.state_dict()
+                        # 对于优化器等其他组件
+                        if use_thread:
+                            payload['state_dicts'][key] = _copy_to_cpu(value.state_dict())
+                        else:
+                            payload['state_dicts'][key] = value.state_dict()
             elif key in include_keys:
                 payload['pickles'][key] = dill.dumps(value)
+        
         if use_thread:
             self._saving_thread = threading.Thread(
                 target=lambda : torch.save(payload, path.open('wb'), pickle_module=dill))
@@ -517,6 +568,7 @@ class TrainDP3Workspace:
         torch.cuda.empty_cache()
         return str(path.absolute())
     
+
     def get_checkpoint_path(self, tag='latest'):
         if tag=='latest':
             return pathlib.Path(self.output_dir).joinpath('checkpoints', f'{tag}.ckpt')
@@ -554,17 +606,48 @@ class TrainDP3Workspace:
                 self.__dict__[key] = dill.loads(payload['pickles'][key])
     
     def load_checkpoint(self, path=None, tag='latest',
-            exclude_keys=None, 
-            include_keys=None, 
-            **kwargs):
+            exclude_keys=None,
+            include_keys=None):
         if path is None:
-            path = self.get_checkpoint_path(tag=tag)
+            path = pathlib.Path(self.output_dir).joinpath('checkpoints', f'{tag}.ckpt')
         else:
             path = pathlib.Path(path)
+        
+        if exclude_keys is None:
+            exclude_keys = tuple(self.exclude_keys)
+        if include_keys is None:
+            include_keys = tuple(self.include_keys) + ('_output_dir',)
+
+        # 确保所有进程都等待检查点文件准备好
+        self.accelerator.wait_for_everyone()
+        
+        if not path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {path}")
+        
+        # 加载检查点
         payload = torch.load(path.open('rb'), pickle_module=dill, map_location='cpu')
-        self.load_payload(payload, 
-            exclude_keys=exclude_keys, 
-            include_keys=include_keys)
+        
+        # 加载state_dicts
+        for key, value in payload['state_dicts'].items():
+            if key in self.__dict__:
+                if key == 'model':
+                    # 对于模型，直接加载到accelerator包装的模型中
+                    self.model.load_state_dict(value, strict=False)
+                elif key == 'ema_model' and hasattr(self, 'ema_model'):
+                    # 对于EMA模型
+                    self.ema_model.load_state_dict(value, strict=False)
+                elif hasattr(self.__dict__[key], 'load_state_dict'):
+                    # 对于优化器等其他组件
+                    self.__dict__[key].load_state_dict(value)
+        
+        # 加载pickles
+        for key, value in payload['pickles'].items():
+            if key in include_keys:
+                self.__dict__[key] = dill.loads(value)
+        
+        # 同步所有进程
+        self.accelerator.wait_for_everyone()
+        
         return payload
     
     @classmethod

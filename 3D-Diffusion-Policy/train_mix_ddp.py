@@ -42,6 +42,12 @@ from accelerate import Accelerator
 sys.path.append("/mnt/hwfile/liumingyu/code/3D-Diffusion-Policy/experiments")
 from debug_utils import setup_debug
 OmegaConf.register_new_resolver("eval", eval, replace=True)
+import os
+# 在初始化分布式训练前设置
+os.environ['NCCL_TIMEOUT'] = '600'  # 30分钟
+os.environ['TORCH_NCCL_BLOCKING_WAIT'] = '1'
+# os.environ['NCCL_DEBUG'] = 'INFO'  # 输出详细日志
+# os.environ['NCCL_DEBUG_SUBSYS'] = 'ALL'  # 检查所有子系统
 
 class TrainDP3Workspace:
     include_keys = ['global_step', 'epoch']
@@ -216,6 +222,8 @@ class TrainDP3Workspace:
         # training loop
         log_path = os.path.join(self.output_dir, 'logs.json.txt')
         for local_epoch_idx in range(cfg.training.num_epochs):
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()  # 确保所有进程同步
             step_log = dict()
             # ========= train for this epoch ==========
             train_losses = list()
@@ -247,14 +255,10 @@ class TrainDP3Workspace:
                     t1_3 = time.time()
                     # update ema
                     if cfg.training.use_ema:
-                        # 只在主进程中更新 EMA，或者确保所有进程同步更新
-                        if self.accelerator.is_main_process:
-                            # 获取未包装的模型来更新 EMA
-                            unwrapped_model = self.accelerator.unwrap_model(self.model)
-                            ema.step(unwrapped_model)
-                        else:
-                            # 非主进程也需要同步 EMA 状态
-                            self.accelerator.wait_for_everyone()
+                        unwrapped_model = self.accelerator.unwrap_model(self.model)
+                        ema.step(unwrapped_model)
+                        self.accelerator.wait_for_everyone()
+                    
                     t1_4 = time.time()
                     # logging
                     if self.accelerator.is_main_process:
@@ -389,7 +393,8 @@ class TrainDP3Workspace:
 
             # end of epoch
             # log of last step is combined with validation and rollout
-            wandb_run.log(step_log, step=self.global_step)
+            if wandb_run is not None:
+                wandb_run.log(step_log, step=self.global_step)
             self.global_step += 1
             self.epoch += 1
             del step_log

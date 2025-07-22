@@ -150,7 +150,7 @@ class ZzskillDataset(BaseDataset):
 
         actions = self.replay_buffer['action']
         tcp_poses = self.replay_buffer['state'][..., -7:]
-
+        # import pdb; pdb.set_trace()
         ee_pos = convert_action_state(tcp_poses, actions)
         data = {
             'action': self.replay_buffer['action'],
@@ -164,16 +164,37 @@ class ZzskillDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.sampler)
 
-    def _sample_to_data(self, sample):
+    def _sample_to_data(self, sample, episode_data, episode_relative_end):
         agent_pos = sample['state'][:, :9].astype(np.float32)  # 只取前9维 (qpos) 切片
         point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
 
         actions = sample['action']
         tcp_poses = sample['state'][..., -7:]
-        # import pdb; pdb.set_trace()
-        ee_pos = convert_action_state(tcp_poses, actions)  # (T, 7)   abs:xyz  delta:ypt 
-        # ee_pos = convert_action_state_quat(tcp_poses, actions)  # (T, 8)
 
+        all_actions = episode_data['action']
+        all_tcp_poses = episode_data['state'][..., -7:]
+
+        # import pdb; pdb.set_trace()
+        
+        # 从episode_relative_end之后的all_tcp_poses中随机选择一个位置
+        if episode_relative_end < len(all_tcp_poses):
+            # 有可选的future poses
+            future_poses = all_tcp_poses[episode_relative_end:]
+            future_actions = all_actions[episode_relative_end:]
+            if len(future_poses) > 0:
+                # 随机选择一个future pose
+                random_idx = np.random.randint(0, len(future_poses))
+                selected_tcp_pose = future_poses[random_idx]
+                selected_action = future_actions[random_idx]
+                # 转换为ee_pos格式，复制到整个序列长度
+                ee_pos = np.tile(convert_single_tcp_pose(selected_tcp_pose, selected_action), (len(tcp_poses), 1))
+            else:
+                # 如果没有future poses，使用最后一个pose
+                ee_pos = np.tile(convert_single_tcp_pose(all_tcp_poses[-1], all_actions[-1]), (len(tcp_poses), 1))
+        else:
+            # 如果episode_relative_end超出范围，使用最后一个pose
+            ee_pos = np.tile(convert_single_tcp_pose(all_tcp_poses[-1], all_actions[-1]), (len(tcp_poses), 1))
+        # import pdb; pdb.set_trace()
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 6
@@ -185,8 +206,9 @@ class ZzskillDataset(BaseDataset):
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        sample = self.sampler.sample_sequence(idx)
-        data = self._sample_to_data(sample)  # 这里只有两个key obs(point_cloud, agent_pos)和action (16,7)
+        sample, episode_data, episode_relative_end = self.sampler.sample_sequence(idx, return_episode=True, return_episode_idx=True)
+        # import pdb; pdb.set_trace()
+        data = self._sample_to_data(sample, episode_data, episode_relative_end)  # 这里只有两个key obs(point_cloud, agent_pos)和action (16,7)
         # maniskill 
         # data['obs']['point_cloud'] (16,1024,6) 
         # data['obs']['agent_pos'] (16,9)
@@ -196,6 +218,19 @@ class ZzskillDataset(BaseDataset):
         torch_data = dict_apply(data, torch.from_numpy)
         return torch_data
 
+
+def convert_single_tcp_pose(tcp_pose, action):
+    """将单个tcp_pose和action转换为ee_pos格式，模仿convert_action_state的处理方式"""
+    def quaternion_to_euler(quaternion):
+        from scipy.spatial.transform import Rotation as R
+        r = R.from_quat(quaternion)
+        return r.as_euler('ZYX', degrees=False)
+    
+    tcp_euler = quaternion_to_euler(tcp_pose[-4:])
+    # 模仿convert_action_state的处理：tcp_pose[:3] + tcp_euler + action[-1]
+    tcp_state = np.concatenate([tcp_pose[:3], tcp_euler, [action[-1]]])
+    
+    return tcp_state
 
 def convert_action_state(tcp_poses, actions):
     def quaternion_to_euler(quaternion):

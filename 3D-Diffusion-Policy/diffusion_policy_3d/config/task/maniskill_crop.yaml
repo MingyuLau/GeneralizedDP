@@ -32,7 +32,7 @@ dataset:
     #   max_train_episodes: 9000
       
     - _target_: diffusion_policy_3d.dataset.zzskill_dataset_wo_pcd.ZzskillDataset  # 改为ManiSkill数据集
-      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill_crop_debug
+      zarr_path: /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/data/data_maniskill_crop
       horizon: ${horizon}
       pad_before: ${eval:'${n_obs_steps}-1'}
       pad_after: ${eval:'${n_action_steps}-1'}

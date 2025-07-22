@@ -44,7 +44,7 @@ from debug_utils import setup_debug
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 import os
 # 在初始化分布式训练前设置
-os.environ['NCCL_TIMEOUT'] = '600'  # 30分钟
+os.environ['NCCL_TIMEOUT'] = '5400'  # 30分钟
 os.environ['TORCH_NCCL_BLOCKING_WAIT'] = '1'
 # os.environ['NCCL_DEBUG'] = 'INFO'  # 输出详细日志
 # os.environ['NCCL_DEBUG_SUBSYS'] = 'ALL'  # 检查所有子系统

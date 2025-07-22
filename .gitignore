@@ -22,6 +22,10 @@ isaacgym/
 *.html
 nohup.out
 data/
+
+__MACOSX
+.cache_oxl
+libero_test
 _C.cpython-38-x86_64-linux-gnu.so
 _C.cpython-39-x86_64-linux-gnu.so
 *_temp.xml

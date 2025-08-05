@@ -213,7 +213,7 @@ class DP3(BasePolicy):
         sparse_actions = ee_pos # [bs, 16, 7]
         
         last_action = sparse_actions[:, -1:, :]
-        noise = torch.normal(0, 0.1, last_action.shape, device=last_action.device)
+        noise = torch.normal(0, 0.2, last_action.shape, device=last_action.device)
         noisy_last_action = last_action + noise
         # noisy_last_action = last_action
 
@@ -351,7 +351,7 @@ class DP3(BasePolicy):
         sparse_actions = ee_pos # [bs, 16, 7]
         
         last_action = sparse_actions[:, -1:, :]
-        noise = torch.normal(0, 0.1, last_action.shape, device=last_action.device)
+        noise = torch.normal(0, 0.2, last_action.shape, device=last_action.device)
         noisy_last_action = last_action + noise
         # noisy_last_action = last_action
         last_action_expanded = noisy_last_action.repeat(1, 2, 1)

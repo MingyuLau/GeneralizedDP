@@ -6,6 +6,13 @@
 
 
 
+fusermount -u /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/oxe
+/mnt/petrelfs/liumingyu/s3mount vla_data /mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/oxe --allow-overwrite --allow-delete --endpoint-url http://10.140.27.254:80   
+
+export http_proxy=http://liumingyu:lkUAl4PtbY9KNbRuzZT2Oq0DxkVpnhscuohj3wJNOAK9woBmZygKnE35omts@10.1.20.50:23128/
+export https_proxy=http://liumingyu:lkUAl4PtbY9KNbRuzZT2Oq0DxkVpnhscuohj3wJNOAK9woBmZygKnE35omts@10.1.20.50:23128/
+export HTTP_PROXY=http://liumingyu:lkUAl4PtbY9KNbRuzZT2Oq0DxkVpnhscuohj3wJNOAK9woBmZygKnE35omts@10.1.20.50:23128/
+export HTTPS_PROXY=http://liumingyu:lkUAl4PtbY9KNbRuzZT2Oq0DxkVpnhscuohj3wJNOAK9woBmZygKnE35omts@10.1.20.50:23128/
 DEBUG=False
 save_ckpt=True
 

@@ -19,7 +19,7 @@ from diffusion_policy_3d.model.diffusion.mask_generator import LowdimMaskGenerat
 from diffusion_policy_3d.common.pytorch_util import dict_apply
 from diffusion_policy_3d.common.model_util import print_params
 from diffusion_policy_3d.model.vision.pointnet_extractor import DP3Encoder
-
+from visualizer import visualize_pointcloud
 class DP3(BasePolicy):
     def __init__(self, 
             shape_meta: dict,
@@ -194,14 +194,7 @@ class DP3(BasePolicy):
         # normalize input
         nobs = self.normalizer.normalize(obs_dict['obs'])
         # this_n_point_cloud = nobs['imagin_robot'][..., :3] # only use coordinate
-        # if not self.use_pc_color:
-        #     nobs['point_cloud'] = nobs['point_cloud'][..., :3]
-        # this_n_point_cloud = nobs['point_cloud']
-        
-        # nactions = self.normalizer['action'].normalize(obs_dict['actions'])
-        # batch_size = nactions.shape[0]
-        # horizon = nactions.shape[1]
-############
+
         
         ee_pos = nobs['ee_pos']
         
@@ -327,10 +320,8 @@ class DP3(BasePolicy):
     # save_point_cloud_to_ply(point_cloud, 'point_cloud.ply')
     def compute_loss(self, batch):
         # normalize input
-        # import pdb; pdb.set_trace()
         nobs = self.normalizer.normalize(batch['obs']) # batch['obs']['point_cloud'] [bs, 16, 1024, 6] batch['obs']['agent_pos'] : [bs, 16, 9]
         # eepos = self.normalizer['ee_pos'].normalize(batch['obs']['ee_pos'][0][:1,:].squeeze(0))
-        import pdb; pdb.set_trace()
         nactions = self.normalizer['action'].normalize(batch['action'])
         ee_pos = nobs['ee_pos']
 
@@ -338,28 +329,29 @@ class DP3(BasePolicy):
         batch_size = nactions.shape[0]
         horizon = nactions.shape[1]
         ############
-        sparse_stride = 4
-        # sparse_actions = nactions[:, ::sparse_stride]  # 稀疏采样
-        sparse_actions = nactions # [bs, 16, 7]
         
         sparse_actions = ee_pos # [bs, 16, 7]
         # import pdb; pdb.set_trace()
-        # last_action = sparse_actions[:, -1:, :]
+        last_action = sparse_actions[:, -1:, :]
         # noise = torch.normal(0, 0.2, last_action.shape, device=last_action.device)
         # noisy_last_action = last_action + noise
-        # noisy_last_action = last_action
-        # last_action_expanded = noisy_last_action.repeat(1, 2, 1)
-        nobs['sparse_actions'] = sparse_actions
-
+        noisy_last_action = last_action
+        last_action_expanded = noisy_last_action.repeat(1, 2, 1)
         # import pdb; pdb.set_trace()
+        nobs['sparse_actions'] = last_action_expanded
+        point_cloud = nobs['point_cloud'][0][0].cpu().numpy()
+        point_cloud[:, 3:6] *= 255
+        self.save_point_cloud_to_ply(point_cloud,"/mnt/petrelfs/liumingyu/code/3D-Diffusion-Policy/save_pcd/1.ply")
+        import pdb; pdb.set_trace()
+        # visualize_pointcloud(pc_sample)
         ###########
         # handle different ways of passing observation
+        nobs['point_cloud'][0][0]
+
         local_cond = None
         global_cond = None
         trajectory = nactions
         cond_data = trajectory # [128,16,7]
-        
-        # import pdb; pdb.set_trace()
         
         # nobs['sparse_actions'] = sparse_actions
         if self.obs_as_global_cond:
@@ -376,7 +368,7 @@ class DP3(BasePolicy):
             else:
                 # reshape back to B, Do
                 global_cond = nobs_features.reshape(batch_size, -1) # [bs,384]
-
+                
         else:
             # reshape B, T, ... to B*T
             this_nobs = dict_apply(nobs, lambda x: x.reshape(-1, *x.shape[2:]))

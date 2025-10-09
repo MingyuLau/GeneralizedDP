@@ -8,17 +8,17 @@ shape_meta: ${task.shape_meta}
 exp_name: "debug"
 
 # horizon: 4
-horizon: 16
+horizon: 4
 n_obs_steps: 2
 # n_action_steps: 3
-n_action_steps: 8
+n_action_steps: 4
 n_latency_steps: 0
 dataset_obs_steps: ${n_obs_steps}
 keypoint_visible_rate: 1.0
 obs_as_global_cond: True
 
 policy:
-  _target_: diffusion_policy_3d.policy.dp3_tcp_wo_pcd.DP3
+  _target_: diffusion_policy_3d.policy.dp3_eepose.DP3
   use_point_crop: true
   condition_type: film
   use_down_condition: true
@@ -78,7 +78,7 @@ ema:
 
 dataloader:
   batch_size: 4096
-  num_workers: 0
+  num_workers: 16
   shuffle: True
   pin_memory: True
   persistent_workers: False
@@ -108,7 +108,7 @@ training:
   gradient_accumulate_every: 1
   use_ema: True
   rollout_every: 200
-  checkpoint_every: 200
+  checkpoint_every: 500
   val_every: 10
   sample_every: 5
   max_train_steps: null
